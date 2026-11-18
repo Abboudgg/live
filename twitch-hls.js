@@ -8,6 +8,7 @@ module.exports = function registerTwitchHls(app) {
   const channel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
   const sourceUrl = "https://www.twitch.tv/" + channel;
   const outputDir = path.join(os.tmpdir(), "live-twitch-hls");
+  fs.mkdirSync(outputDir, { recursive: true });
   const playlistPath = path.join(outputDir, "index.m3u8");
   let streamlink = null;
   let ffmpeg = null;
