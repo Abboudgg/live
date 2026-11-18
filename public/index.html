@@ -123,13 +123,25 @@
         document.getElementById("tiktokLink").href = "https://www.tiktok.com/@" + tiktok;
         document.getElementById("status").textContent = "جاهز — " + twitch;
 
-        fetch("/chat-status").then(r => r.json()).then(s => {
-          const t = document.getElementById("tiktokStatus");
-          t.textContent = "♪ TikTok: " + (s.tiktok === "connected" ? "متصل" : "جاري الاتصال");
-          if (s.tiktok === "connected") t.classList.add("online");
-          document.getElementById("kickStatus").textContent =
-            "🟢 Kick: " + (s.kick === "connected" ? "متصل" : "بانتظار الربط الرسمي");
-        }).catch(() => {});
+        async function refreshChatStatus() {
+          try {
+            const s = await fetch("/chat-status").then(r => r.json());
+            const t = document.getElementById("tiktokStatus");
+            const labels = {
+              connected: "متصل",
+              connecting: "جاري الاتصال",
+              starting: "يبدأ الاتصال",
+              offline_or_unavailable: "البث غير متاح حاليًا",
+              disconnected: "انقطع الاتصال"
+            };
+            t.textContent = "♪ TikTok: " + (labels[s.tiktok] || "غير معروف");
+            t.classList.toggle("online", s.tiktok === "connected");
+            document.getElementById("kickStatus").textContent =
+              "🟢 Kick: " + (s.kick === "connected" ? "متصل" : "بانتظار الربط الرسمي");
+          } catch {}
+        }
+        refreshChatStatus();
+        setInterval(refreshChatStatus, 10000);
       })
       .catch(() => {
         document.getElementById("status").textContent = "تعذر تحميل الإعدادات";
