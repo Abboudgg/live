@@ -1,8 +1,8 @@
 {
   "name": "live-multi-chat",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "Twitch stream dashboard with Kick chat and an optional RTMP restream worker.",
+  "description": "Unified livestream chat dashboard for Twitch, Kick and TikTok.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -12,6 +12,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "tiktok-live-connector": "^2.5.0"
   }
 }
