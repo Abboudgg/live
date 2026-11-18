@@ -1,0 +1,17 @@
+{
+  "name": "live-multi-chat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Twitch stream dashboard with Kick chat and an optional RTMP restream worker.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "worker": "node worker.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
