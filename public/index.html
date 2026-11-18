@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LIVE — البث والدردشة</title>
+  <title>LIVE — البث والشات الموحد</title>
   <style>
     :root { color-scheme: dark; font-family: system-ui, -apple-system, sans-serif; }
     * { box-sizing: border-box; }
@@ -12,22 +12,36 @@
     h1 { font-size: 21px; margin: 0; }
     .muted { color:#a5a7b2; font-size:13px; }
     main { max-width: 1250px; margin:auto; padding:18px; }
-    .layout { display:grid; grid-template-columns:minmax(0, 1.7fr) minmax(280px, 1fr); gap:16px; }
+    .layout { display:grid; grid-template-columns:minmax(0, 1.65fr) minmax(300px, 1fr); gap:16px; align-items:start; }
     .panel { background:#191b23; border:1px solid #2b2e39; border-radius:14px; overflow:hidden; }
     .panel h2 { font-size:16px; margin:0; padding:14px 16px; border-bottom:1px solid #2b2e39; }
     .player { aspect-ratio:16/9; background:#08090d; }
     iframe { width:100%; height:100%; border:0; }
-    .chat-frame { height:620px; background:#0b0c10; }
     .actions { display:flex; gap:10px; flex-wrap:wrap; padding:14px; }
     a { color:#c5b7ff; }
     .button { display:inline-block; padding:10px 13px; border:1px solid #45495a; border-radius:9px; text-decoration:none; }
+    .chat-panel { min-height:420px; }
+    .chat-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .platform-status { display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px; border-bottom:1px solid #2b2e39; }
+    .status-chip { font-size:12px; padding:5px 9px; border:1px solid #3b3e4b; border-radius:20px; color:#c7c8d0; }
+    .status-chip.online { border-color:#246b49; color:#8ee0b2; }
+    .status-chip.waiting { border-color:#705a2e; color:#e8cc8c; }
+    #messages { height:520px; overflow-y:auto; padding:10px 14px; display:flex; flex-direction:column; gap:10px; }
+    .message { background:#222530; border:1px solid #303341; border-radius:10px; padding:9px 11px; overflow-wrap:anywhere; }
+    .message-top { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+    .platform { font-size:11px; font-weight:700; padding:3px 7px; border-radius:6px; }
+    .platform.tiktok { background:#39202e; color:#ff9ac4; }
+    .platform.kick { background:#18382b; color:#8fe6ad; }
+    .username { font-size:13px; font-weight:700; }
+    .message-text { font-size:14px; line-height:1.6; white-space:pre-wrap; }
+    .empty { color:#9da0ac; text-align:center; padding:35px 15px; line-height:1.8; }
     .notice { margin-top:16px; padding:14px; border:1px solid #51452c; background:#211d15; border-radius:12px; color:#e8d8b5; font-size:13px; line-height:1.7; }
-    @media(max-width:850px) { .layout { grid-template-columns:1fr; } .chat-frame { height:520px; } }
+    @media(max-width:850px) { .layout { grid-template-columns:1fr; } #messages { height:430px; } }
   </style>
 </head>
 <body>
   <header>
-    <div><h1>LIVE — البث والدردشة</h1><div class="muted">لوحة متابعة Twitch وKick وTikTok</div></div>
+    <div><h1>LIVE — البث والشات الموحد</h1><div class="muted">رسائل المنصات في قائمة واحدة</div></div>
     <div class="muted" id="status">جاري تحميل الإعدادات…</div>
   </header>
   <main>
@@ -41,19 +55,59 @@
           <a class="button" id="tiktokLink" target="_blank" rel="noopener">فتح TikTok</a>
         </div>
       </section>
-      <section class="panel">
-        <h2>دردشة Kick</h2>
-        <div class="chat-frame"><iframe id="kickChat" title="Kick chat"></iframe></div>
+
+      <section class="panel chat-panel">
+        <h2 class="chat-head"><span>الشات الموحد</span><span class="muted">Kick + TikTok</span></h2>
+        <div class="platform-status">
+          <span class="status-chip waiting" id="kickStatus">🟢 Kick: بانتظار الربط الرسمي</span>
+          <span class="status-chip" id="tiktokStatus">♪ TikTok: جاري الاتصال</span>
+        </div>
+        <div id="messages" aria-live="polite">
+          <div class="empty" id="emptyState">الشات الموحد جاهز.<br>ستظهر التعليقات هنا مع شعار منصتها بجانب اسم صاحب التعليق.</div>
+        </div>
       </section>
     </div>
+
     <div class="notice">
-      <strong>ملاحظة مهمة:</strong>
-      هذه نسخة أولية من لوحة العرض. دردشة TikTok غير مدمجة هنا؛ لا توجد واجهة رسمية عامة مضمونة لعرضها داخل الموقع لكل الحسابات.
-      كما أن إعادة البث تحتاج إعداد Background Worker على Render ومفاتيح RTMP محفوظة كمتغيرات سرية، وليس داخل ملفات GitHub.
+      <strong>حالة الربط:</strong>
+      استقبال تعليقات TikTok يستخدم موصلًا غير رسمي وقد يتوقف إذا تغيّر نظام TikTok. لا يحتاج كلمة مرور حسابك، لكنه يعتمد على خدمة توقيع خارجية للاتصال.
+      تعليقات Kick لم تُربط بعد؛ نحتاج إعداد تطبيق Kick رسمي وتفعيل Webhook لصلاحية chat messages قبل ظهورها في القائمة.
+      لا تُعرض أي تعليقات وهمية، ولن تظهر الرسائل إلا بعد نجاح الاتصال الفعلي.
+      <br><br>
       استخدم إعادة البث فقط للمحتوى الذي تملكه أو لديك إذن صريح بإعادة بثه.
     </div>
   </main>
   <script>
+    const messages = document.getElementById("messages");
+    const emptyState = document.getElementById("emptyState");
+    let messageCount = 0;
+
+    function addMessage(item) {
+      if (!item || !item.message) return;
+      emptyState?.remove();
+      const card = document.createElement("article");
+      card.className = "message";
+
+      const top = document.createElement("div");
+      top.className = "message-top";
+      const platform = document.createElement("span");
+      platform.className = "platform " + (item.platform === "tiktok" ? "tiktok" : "kick");
+      platform.textContent = item.platform === "tiktok" ? "♪ TikTok" : "🟢 Kick";
+      const username = document.createElement("span");
+      username.className = "username";
+      username.textContent = item.username || "مستخدم";
+      top.append(platform, username);
+
+      const body = document.createElement("div");
+      body.className = "message-text";
+      body.textContent = item.message;
+      card.append(top, body);
+      messages.append(card);
+      messageCount++;
+      while (messages.children.length > 150) messages.removeChild(messages.firstChild);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
     fetch("/config")
       .then(r => r.json())
       .then(c => {
@@ -64,16 +118,31 @@
         document.getElementById("twitch").src =
           "https://player.twitch.tv/?channel=" + encodeURIComponent(twitch) +
           "&parent=" + encodeURIComponent(parent) + "&autoplay=false";
-        document.getElementById("kickChat").src =
-          "https://kick.com/popout/" + encodeURIComponent(kick) + "/chat";
         document.getElementById("twitchLink").href = "https://www.twitch.tv/" + twitch;
         document.getElementById("kickLink").href = "https://kick.com/" + kick;
         document.getElementById("tiktokLink").href = "https://www.tiktok.com/@" + tiktok;
         document.getElementById("status").textContent = "جاهز — " + twitch;
+
+        fetch("/chat-status").then(r => r.json()).then(s => {
+          const t = document.getElementById("tiktokStatus");
+          t.textContent = "♪ TikTok: " + (s.tiktok === "connected" ? "متصل" : "جاري الاتصال");
+          if (s.tiktok === "connected") t.classList.add("online");
+          document.getElementById("kickStatus").textContent =
+            "🟢 Kick: " + (s.kick === "connected" ? "متصل" : "بانتظار الربط الرسمي");
+        }).catch(() => {});
       })
       .catch(() => {
         document.getElementById("status").textContent = "تعذر تحميل الإعدادات";
       });
+
+    const stream = new EventSource("/events");
+    stream.addEventListener("chat", event => {
+      try { addMessage(JSON.parse(event.data)); } catch {}
+    });
+    stream.onerror = () => {
+      document.getElementById("tiktokStatus").textContent = "♪ TikTok: إعادة محاولة الاتصال";
+      document.getElementById("tiktokStatus").classList.remove("online");
+    };
   </script>
 </body>
 </html>
