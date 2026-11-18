@@ -60,7 +60,7 @@ async function startTikTokChat() {
     try {
       tiktokStatus = "connecting";
       const { TikTokLiveConnection, WebcastEvent } = await import("tiktok-live-connector");
-      connection = new TikTokLiveConnection(username);
+      connection = new TikTokLiveConnection(username, {});
 
       connection.on(WebcastEvent.CHAT, data => {
         publishChat({
