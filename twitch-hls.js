@@ -78,6 +78,12 @@ module.exports = function registerTwitchHls(app) {
       ], { stdio: ["pipe", "ignore", "inherit"] });
 
       streamlink.stdout.pipe(ffmpeg.stdin);
+      ffmpeg.stdin.on("error", error => {
+        if (error.code !== "EPIPE") {
+          lastError = "FFmpeg input: " + error.message;
+          stopStream();
+        }
+      });
       streamlink.on("error", error => {
         lastError = "Streamlink: " + error.message;
         stopStream();
@@ -108,7 +114,13 @@ module.exports = function registerTwitchHls(app) {
           }
         } catch {}
       }, 1000);
-      setTimeout(() => clearInterval(checkPlaylist), 30000);
+      setTimeout(() => {
+        clearInterval(checkPlaylist);
+        if (status === "starting") {
+          lastError = "لم يصل بث Twitch خلال 45 ثانية. تأكد أن القناة مباشرة ومتاحة.";
+          stopStream();
+        }
+      }, 45000);
 
       return res.status(202).json({ ok: true, status, url: "/live/twitch/index.m3u8" });
     } catch (error) {
