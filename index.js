@@ -271,6 +271,8 @@ async function startTikTokChat() {
   }
 }
 
+require("./twitch-hls")(app);
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Web dashboard listening on port ${PORT}`);
   startTikTokChat().catch(error => console.error("TikTok chat startup error:", error));
