@@ -171,7 +171,8 @@ app.get("/kick/callback", async (req, res) => {
     });
     const subscriptionData = await subscriptionResponse.json().catch(() => ({}));
     if (!subscriptionResponse.ok) {
-      console.error("Kick event subscription failed:", subscriptionData.message || subscriptionResponse.status);
+      const kickErrorDetails = subscriptionData.message || subscriptionData.error || JSON.stringify(subscriptionData).slice(0, 1000) || "No response details";
+      console.error("Kick event subscription failed:", JSON.stringify({ status: subscriptionResponse.status, statusText: subscriptionResponse.statusText, details: kickErrorDetails }));
       kickStatus = "authorized_subscription_pending";
       return res.status(200).send("Kick connected, but chat event subscription failed. Check webhook settings and server logs.");
     }
