@@ -68,6 +68,19 @@
       </section>
     </div>
 
+    <section class="panel" style="margin-top:16px;padding:14px">
+      <h2 style="padding:0 0 12px;border:0">رابط بث Twitch المباشر (M3U8)</h2>
+      <p class="muted">شغّل بث قناتك ثم انسخ رابط الفيديو والصوت لاستخدامه في مشغل يدعم HLS.</p>
+      <div class="actions" style="padding:8px 0">
+        <input id="streamToken" type="password" autocomplete="off" placeholder="رمز التحكم من Render (STREAM_CONTROL_TOKEN)" style="min-width:240px;flex:1;padding:10px;border-radius:9px;border:1px solid #45495a;background:#101116;color:#fff">
+        <button class="button" id="startTwitchStream" type="button">تشغيل البث</button>
+        <button class="button" id="stopTwitchStream" type="button">إيقاف البث</button>
+        <button class="button" id="copyTwitchStream" type="button" disabled>نسخ رابط M3U8</button>
+      </div>
+      <div class="muted" id="twitchStreamStatus" aria-live="polite">حالة رابط البث: متوقف</div>
+      <p style="margin:10px 0 0;word-break:break-all"><a id="twitchStreamUrl" hidden target="_blank" rel="noopener"></a></p>
+    </section>
+
     <div class="notice">
       <strong>حالة الربط:</strong>
       استقبال تعليقات TikTok يستخدم موصلًا غير رسمي وقد يتوقف إذا تغيّر نظام TikTok. لا يحتاج كلمة مرور حسابك، لكنه يعتمد على خدمة توقيع خارجية للاتصال.
@@ -146,6 +159,76 @@
       .catch(() => {
         document.getElementById("status").textContent = "تعذر تحميل الإعدادات";
       });
+
+    const streamTokenInput = document.getElementById("streamToken");
+    const twitchStreamStatus = document.getElementById("twitchStreamStatus");
+    const twitchStreamUrl = document.getElementById("twitchStreamUrl");
+    const copyTwitchStream = document.getElementById("copyTwitchStream");
+
+    function showTwitchStreamStatus(data) {
+      const labels = { offline: "متوقف", starting: "جاري تجهيز البث…", live: "يعمل الآن" };
+      twitchStreamStatus.textContent = "حالة رابط البث: " + (labels[data.status] || data.status || "غير معروف") +
+        (data.error ? " — " + data.error : "");
+      const available = data.status === "live" || data.status === "starting";
+      if (available) {
+        const url = location.origin + "/live/twitch/index.m3u8";
+        twitchStreamUrl.href = url;
+        twitchStreamUrl.textContent = url;
+        twitchStreamUrl.hidden = false;
+        copyTwitchStream.disabled = false;
+      } else {
+        twitchStreamUrl.hidden = true;
+        copyTwitchStream.disabled = true;
+      }
+    }
+
+    async function refreshTwitchStreamStatus() {
+      try {
+        const response = await fetch("/twitch-stream/status");
+        showTwitchStreamStatus(await response.json());
+      } catch {
+        twitchStreamStatus.textContent = "تعذر قراءة حالة بث Twitch.";
+      }
+    }
+
+    async function controlTwitchStream(action) {
+      const token = streamTokenInput.value.trim();
+      if (!token) {
+        twitchStreamStatus.textContent = "أدخل رمز STREAM_CONTROL_TOKEN أولاً.";
+        streamTokenInput.focus();
+        return;
+      }
+      const button = document.getElementById(action === "start" ? "startTwitchStream" : "stopTwitchStream");
+      button.disabled = true;
+      try {
+        const response = await fetch("/twitch-stream/" + action, {
+          method: "POST",
+          headers: { "x-stream-control-token": token }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "تعذر تنفيذ الطلب");
+        showTwitchStreamStatus(data);
+        await refreshTwitchStreamStatus();
+      } catch (error) {
+        twitchStreamStatus.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    document.getElementById("startTwitchStream").addEventListener("click", () => controlTwitchStream("start"));
+    document.getElementById("stopTwitchStream").addEventListener("click", () => controlTwitchStream("stop"));
+    copyTwitchStream.addEventListener("click", async () => {
+      const url = location.origin + "/live/twitch/index.m3u8";
+      try {
+        await navigator.clipboard.writeText(url);
+        twitchStreamStatus.textContent = "تم نسخ رابط M3U8.";
+      } catch {
+        twitchStreamStatus.textContent = "انسخ الرابط الظاهر بالضغط المطوّل عليه.";
+      }
+    });
+    refreshTwitchStreamStatus();
+    setInterval(refreshTwitchStreamStatus, 5000);
 
     const stream = new EventSource("/events");
     stream.addEventListener("chat", event => {
