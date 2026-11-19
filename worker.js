@@ -4,6 +4,7 @@ const path = require("path");
 
 const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
+const standbyVideoPath = path.join(require("os").tmpdir(), "live-control-media", "automatic-standby-video");
 const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
 const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
@@ -170,17 +171,30 @@ async function checkTwitchAvailable() {
 async function runStandbyUntilLive() {
   console.log("Showing the maroon waiting screen until Twitch returns.");
   const textFile = path.join(__dirname, "waiting.txt");
-  const args = [
-    "-hide_banner", "-loglevel", "warning",
-    "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
-    "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-vf", `drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf:textfile=${textFile}:fontcolor=white:fontsize=76:x=(w-text_w)/2:y=(h-text_h)/2:text_shaping=1`,
+  const hasStandbyVideo = fs.existsSync(standbyVideoPath);
+  const args = ["-hide_banner", "-loglevel", "warning"];
+  if (hasStandbyVideo) {
+    console.log("Playing automatic standby video in loop:", path.basename(standbyVideoPath));
+    args.push(
+      "-stream_loop", "-1", "-re", "-i", standbyVideoPath,
+      "-map", "0:v:0", "-map", "0:a:0?",
+      "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p"
+    );
+  } else {
+    console.log("No automatic standby video uploaded; using the maroon fallback screen.");
+    args.push(
+      "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
+      "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+      "-vf", `drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf:textfile=${textFile}:fontcolor=white:fontsize=76:x=(w-text_w)/2:y=(h-text_h)/2:text_shaping=1`
+    );
+  }
+  args.push(
     "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-    "-b:v", "1200k", "-maxrate", "1200k", "-bufsize", "2400k",
+    "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
     "-g", "60", "-keyint_min", "60",
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
     "-f", "flv", destinations[0][1]
-  ];
+  );
   const standby = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
   activeChildren = [standby];
 
