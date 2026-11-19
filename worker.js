@@ -2,20 +2,31 @@ const { spawn } = require("child_process");
 
 const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
-const destinations = [
-  ["Kick", process.env.KICK_RTMP_URL],
-  ["TikTok", process.env.TIKTOK_RTMP_URL]
-].filter(([, url]) => Boolean(url));
+const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
+const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
+const destinations = [];
 
-if (destinations.length === 0) {
-  console.error("Set KICK_RTMP_URL and/or TIKTOK_RTMP_URL as secret environment variables.");
-  process.exit(1);
+if (restreamServer && restreamKey) {
+  const server = restreamServer.replace(/\\/+$/, "");
+  const key = restreamKey.replace(/^\\/+/, "");
+  destinations.push(["Restream", server + "/" + key]);
+} else {
+  if (restreamServer || restreamKey) {
+    console.warn("Restream is only partially configured. Set both RESTREAM_RTMP_URL and RESTREAM_STREAM_KEY.");
+  }
+  destinations.push(
+    ["Kick", process.env.KICK_RTMP_URL],
+    ["TikTok", process.env.TIKTOK_RTMP_URL]
+  );
 }
 
-for (const name of ["Kick", "TikTok"]) {
-  if (!destinations.some(([destination]) => destination === name)) {
-    console.warn(name + " RTMP destination is not configured.");
-  }
+const configuredDestinations = destinations.filter(([, url]) => Boolean(url));
+destinations.length = 0;
+destinations.push(...configuredDestinations);
+
+if (destinations.length === 0) {
+  console.error("Set RESTREAM_RTMP_URL and RESTREAM_STREAM_KEY, or configure a direct RTMP destination.");
+  process.exit(1);
 }
 
 console.log("Starting Twitch restream:", twitchUrl);
