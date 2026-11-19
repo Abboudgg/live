@@ -120,8 +120,31 @@ async function runAttempt() {
 }
 
 
-async function runStandby() {
-  console.log("Twitch is offline. Showing the maroon waiting screen for 20 seconds.");
+async function checkTwitchAvailable() {
+  return await new Promise(resolve => {
+    const probe = spawn("streamlink", ["--stream-url", twitchUrl, "best"], {
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+    let output = "";
+    let settled = false;
+    const finish = available => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (!probe.killed) probe.kill("SIGTERM");
+      resolve(available);
+    };
+    const timer = setTimeout(() => finish(false), 12000);
+    probe.stdout.on("data", chunk => {
+      output = (output + chunk.toString()).slice(-4000);
+    });
+    probe.on("error", () => finish(false));
+    probe.on("close", code => finish(code === 0 && output.trim().length > 0));
+  });
+}
+
+async function runStandbyUntilLive() {
+  console.log("Showing the maroon waiting screen until Twitch returns.");
   const textFile = path.join(__dirname, "waiting.txt");
   const args = [
     "-hide_banner", "-loglevel", "warning",
@@ -137,29 +160,35 @@ async function runStandby() {
   const standby = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
   activeChildren = [standby];
 
-  await new Promise(resolve => {
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      if (!standby.killed) standby.kill("SIGTERM");
-      resolve();
-    };
-    const timer = setTimeout(finish, 20000);
-    standby.on("error", error => {
-      console.error("Could not start waiting screen:", error.message);
-      finish();
+  const ended = new Promise(resolve => {
+    standby.once("error", error => {
+      console.error("Waiting screen FFmpeg error:", error.message);
+      resolve("ended");
     });
-    standby.on("close", code => {
+    standby.once("close", code => {
       console.log("Waiting screen ended with code:", code);
-      finish();
+      resolve("ended");
     });
   });
 
+  while (!stopping) {
+    const next = await Promise.race([
+      sleep(15000).then(() => "probe"),
+      ended
+    ]);
+    if (next === "ended" || stopping) break;
+
+    if (await checkTwitchAvailable()) {
+      console.log("Twitch is back. Switching from waiting screen to live stream.");
+      break;
+    }
+    console.log("Twitch is still unavailable; keeping the waiting screen live.");
+  }
+
+  if (!standby.killed) standby.kill("SIGTERM");
+  await Promise.race([ended, sleep(3000)]);
   activeChildren = [];
 }
-
 async function main() {
   while (!stopping) {
     const result = await runAttempt();
@@ -181,8 +210,7 @@ async function main() {
       console.warn("Stream connection ended unexpectedly.");
     }
 
-    await runStandby();
-    if (!stopping) await sleep(2000);
+    await runStandbyUntilLive();
   }
 }
 
