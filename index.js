@@ -20,6 +20,7 @@ app.disable("x-powered-by");
 
 const mediaDirectory = path.join(os.tmpdir(), "live-control-media");
 fs.mkdirSync(mediaDirectory, { recursive: true });
+const standbyVideoPath = path.join(mediaDirectory, "automatic-standby-video");
 const allowedVideoExtensions = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
 const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
 
@@ -379,6 +380,30 @@ function mediaFiles() {
 app.get("/media/list", (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   return res.json({ files: mediaFiles(), active: activeMediaFile });
+});
+
+app.get("/standby-video", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  if (!fs.existsSync(standbyVideoPath)) return res.json({ configured: false });
+  const stat = fs.statSync(standbyVideoPath);
+  return res.json({ configured: true, size: stat.size, updatedAt: stat.mtimeMs });
+});
+
+app.post("/standby-video/upload", express.raw({ type: "application/octet-stream", limit: MAX_MEDIA_BYTES }), (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  const originalName = decodeURIComponent(String(req.get("x-file-name") || "standby.mp4")).replace(/\\/g, "/").split("/").pop();
+  const extension = path.extname(originalName).toLowerCase();
+  if (!allowedVideoExtensions.has(extension)) return res.status(400).json({ error: "صيغة الفيديو غير مدعومة." });
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "ملف الفيديو فارغ." });
+  if (req.body.length > MAX_MEDIA_BYTES) return res.status(413).json({ error: "الحد الأقصى لحجم الفيديو 200 ميجابايت." });
+  fs.writeFileSync(standbyVideoPath, req.body);
+  return res.status(201).json({ ok: true, configured: true, size: req.body.length });
+});
+
+app.delete("/standby-video", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  if (fs.existsSync(standbyVideoPath)) fs.unlinkSync(standbyVideoPath);
+  return res.json({ ok: true, configured: false });
 });
 
 let activeMediaFile = null;
