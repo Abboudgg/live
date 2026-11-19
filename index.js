@@ -276,7 +276,11 @@ require("./twitch-hls")(app);
 
 let restreamWorker = null;
 function startRestreamWorker() {
-  const configured = Boolean(process.env.KICK_RTMP_URL || process.env.TIKTOK_RTMP_URL);
+  const hasRestream = Boolean(
+    process.env.RESTREAM_RTMP_URL?.trim() && process.env.RESTREAM_STREAM_KEY?.trim()
+  );
+  const hasDirectDestination = Boolean(process.env.KICK_RTMP_URL || process.env.TIKTOK_RTMP_URL);
+  const configured = hasRestream || hasDirectDestination;
   if (!configured || restreamWorker) return;
   console.log("RTMP destinations configured; starting Twitch restream worker.");
   restreamWorker = spawn(process.execPath, [path.join(__dirname, "worker.js")], {
