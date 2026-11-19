@@ -1,243 +1,76 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LIVE — البث والشات الموحد</title>
-  <style>
-    :root { color-scheme: dark; font-family: system-ui, -apple-system, sans-serif; }
-    * { box-sizing: border-box; }
-    body { margin: 0; background: #101116; color: #f5f5f7; }
-    header { padding: 20px; border-bottom: 1px solid #292b35; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-    h1 { font-size: 21px; margin: 0; }
-    .muted { color:#a5a7b2; font-size:13px; }
-    main { max-width: 1250px; margin:auto; padding:18px; }
-    .layout { display:grid; grid-template-columns:minmax(0, 1.65fr) minmax(300px, 1fr); gap:16px; align-items:start; }
-    .panel { background:#191b23; border:1px solid #2b2e39; border-radius:14px; overflow:hidden; }
-    .panel h2 { font-size:16px; margin:0; padding:14px 16px; border-bottom:1px solid #2b2e39; }
-    .player { aspect-ratio:16/9; background:#08090d; }
-    iframe { width:100%; height:100%; border:0; }
-    .actions { display:flex; gap:10px; flex-wrap:wrap; padding:14px; }
-    a { color:#c5b7ff; }
-    .button { display:inline-block; padding:10px 13px; border:1px solid #45495a; border-radius:9px; text-decoration:none; }
-    .chat-panel { min-height:420px; }
-    .chat-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .platform-status { display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px; border-bottom:1px solid #2b2e39; }
-    .status-chip { font-size:12px; padding:5px 9px; border:1px solid #3b3e4b; border-radius:20px; color:#c7c8d0; }
-    .status-chip.online { border-color:#246b49; color:#8ee0b2; }
-    .status-chip.waiting { border-color:#705a2e; color:#e8cc8c; }
-    #messages { height:520px; overflow-y:auto; padding:10px 14px; display:flex; flex-direction:column; gap:10px; }
-    .message { background:#222530; border:1px solid #303341; border-radius:10px; padding:9px 11px; overflow-wrap:anywhere; }
-    .message-top { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
-    .platform { font-size:11px; font-weight:700; padding:3px 7px; border-radius:6px; }
-    .platform.tiktok { background:#39202e; color:#ff9ac4; }
-    .platform.kick { background:#18382b; color:#8fe6ad; }
-    .username { font-size:13px; font-weight:700; }
-    .message-text { font-size:14px; line-height:1.6; white-space:pre-wrap; }
-    .empty { color:#9da0ac; text-align:center; padding:35px 15px; line-height:1.8; }
-    .notice { margin-top:16px; padding:14px; border:1px solid #51452c; background:#211d15; border-radius:12px; color:#e8d8b5; font-size:13px; line-height:1.7; }
-    @media(max-width:850px) { .layout { grid-template-columns:1fr; } #messages { height:430px; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b0d12">
+<title>LIVE Control Room</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--bg:#0b0d12;--panel:#121620;--panel2:#171d29;--line:#252d3b;--muted:#8f9aab;--text:#eef2f8;--green:#28d17c;--red:#ff5d68;--purple:#9c83ff;--yellow:#f3c969}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% -20%,#1d2440 0,transparent 40%),var(--bg);color:var(--text);min-height:100vh}
+button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:auto;padding:22px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:22px}.brand{display:flex;align-items:center;gap:12px}.logo{width:43px;height:43px;border-radius:13px;background:linear-gradient(145deg,#a18aff,#5e47c7);display:grid;place-items:center;font-weight:900;font-size:20px;box-shadow:0 8px 28px #7158d744}.brand h1{font-size:19px;margin:0;letter-spacing:.2px}.brand p{margin:4px 0 0;color:var(--muted);font-size:12px}.top-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.pill{border:1px solid var(--line);background:#111722;border-radius:999px;padding:8px 12px;color:#b7c1d0;font-size:12px;display:flex;align-items:center;gap:7px}.dot{width:7px;height:7px;border-radius:50%;background:var(--yellow);box-shadow:0 0 10px currentColor}.dot.green{background:var(--green)}.dot.red{background:var(--red)}
+.grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(310px,.9fr);gap:16px;align-items:start}.stack{display:grid;gap:16px}.panel{background:linear-gradient(180deg,#151a25,#111620);border:1px solid var(--line);border-radius:17px;overflow:hidden;box-shadow:0 12px 35px #0002}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;border-bottom:1px solid var(--line)}.panel-head h2{font-size:14px;margin:0;font-weight:750}.eyebrow{font-size:10px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase}.preview{aspect-ratio:16/9;background:#05070b;position:relative}.preview iframe{width:100%;height:100%;border:0}.preview-label{position:absolute;top:12px;right:12px;background:#090c12d9;border:1px solid #ffffff1c;border-radius:8px;padding:6px 9px;font-size:11px;z-index:1}.preview-bottom{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 15px;flex-wrap:wrap}.muted{color:var(--muted);font-size:12px}.links{display:flex;gap:8px;flex-wrap:wrap}.link{color:#c7bcff;text-decoration:none;font-size:12px;padding:7px 10px;border:1px solid #3b355b;border-radius:9px;background:#211d34}.link:hover{background:#2b2545}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{padding:14px;background:#111722;border:1px solid var(--line);border-radius:13px}.metric small{color:var(--muted);font-size:11px}.metric strong{display:block;font-size:15px;margin-top:8px}.metric .sub{font-size:10px;color:var(--muted);margin-top:4px}
+.platforms{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:13px}.platform-card{border:1px solid var(--line);background:#111722;border-radius:12px;padding:12px;min-width:0}.platform-title{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:750}.platform-state{font-size:11px;color:var(--muted);margin-top:9px}.badge{font-size:10px;border-radius:99px;padding:4px 7px;background:#272331;color:#c5b9ff}.badge.good{background:#123325;color:#8ce8b7}.badge.wait{background:#332b18;color:#f1d48a}
+.control-body{padding:16px}.control-row{display:flex;gap:9px;flex-wrap:wrap}.btn{border:1px solid #384254;background:#1a2230;color:var(--text);padding:10px 14px;border-radius:10px;font-size:12px;font-weight:700;transition:.15s}.btn:hover{filter:brightness(1.18);transform:translateY(-1px)}.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}.btn.primary{background:linear-gradient(135deg,#7158df,#5741b9);border-color:#8069ec}.btn.success{background:#123a2a;border-color:#216b49;color:#9aefbf}.btn.danger{background:#3b1b23;border-color:#74313d;color:#ffabb3}.token{width:100%;background:#0b1018;color:var(--text);border:1px solid #30394a;border-radius:10px;padding:11px 12px;margin-bottom:10px;outline:none}.token:focus{border-color:var(--purple)}.statusline{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#bac4d2;flex-wrap:wrap}.url{display:block;color:#b9aaff;word-break:break-all;font-size:11px;margin-top:10px}.chat-wrap{height:510px;display:flex;flex-direction:column}.chat-status{display:flex;gap:7px;flex-wrap:wrap}.chat-scroll{overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px;flex:1}.message{background:#1a202c;border:1px solid #2b3443;border-radius:11px;padding:10px 11px;overflow-wrap:anywhere}.message-top{display:flex;align-items:center;gap:7px;margin-bottom:6px}.platform-tag{font-size:10px;font-weight:800;border-radius:6px;padding:4px 7px}.platform-tag.tiktok{background:#39202e;color:#ff9ac4}.platform-tag.kick{background:#18382b;color:#8fe6ad}.username{font-size:12px;font-weight:750}.message-text{font-size:13px;line-height:1.65;white-space:pre-wrap}.empty{margin:auto;text-align:center;color:var(--muted);font-size:12px;line-height:1.8;padding:22px}.chat-foot{padding:10px 14px;border-top:1px solid var(--line);font-size:10px;color:var(--muted);display:flex;justify-content:space-between}.section-label{font-size:10px;color:var(--muted);letter-spacing:1px;margin:0 0 10px}.notice{padding:12px 14px;border:1px solid #4a4028;background:#211d15;color:#e8d8b5;border-radius:12px;font-size:11px;line-height:1.7}
+@media(max-width:950px){.grid{grid-template-columns:1fr}.chat-wrap{height:430px}}@media(max-width:560px){.app{padding:13px}.topbar{align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{grid-column:1/-1}.platforms{grid-template-columns:1fr}.preview-bottom{align-items:flex-start;flex-direction:column}.panel-head{padding:13px}.chat-wrap{height:390px}}
+</style>
 </head>
 <body>
-  <header>
-    <div><h1>LIVE — البث والشات الموحد</h1><div class="muted">رسائل المنصات في قائمة واحدة</div></div>
-    <div class="muted" id="status">جاري تحميل الإعدادات…</div>
-  </header>
-  <main>
-    <div class="layout">
-      <section class="panel">
-        <h2>مشغل Twitch</h2>
-        <div class="player"><iframe id="twitch" allowfullscreen title="Twitch stream"></iframe></div>
-        <div class="actions">
-          <a class="button" id="twitchLink" target="_blank" rel="noopener">فتح Twitch</a>
-          <a class="button" id="kickLink" target="_blank" rel="noopener">فتح Kick</a>
-          <a class="button" id="tiktokLink" target="_blank" rel="noopener">فتح TikTok</a>
-        </div>
-      </section>
-
-      <section class="panel chat-panel">
-        <h2 class="chat-head"><span>الشات الموحد</span><span class="muted">Kick + TikTok</span></h2>
-        <div class="platform-status">
-          <span class="status-chip waiting" id="kickStatus">🟢 Kick: بانتظار الربط الرسمي</span>
-          <span class="status-chip" id="tiktokStatus">♪ TikTok: جاري الاتصال</span>
-        </div>
-        <div id="messages" aria-live="polite">
-          <div class="empty" id="emptyState">الشات الموحد جاهز.<br>ستظهر التعليقات هنا مع شعار منصتها بجانب اسم صاحب التعليق.</div>
-        </div>
-      </section>
-    </div>
-
-    <section class="panel" style="margin-top:16px;padding:14px">
-      <h2 style="padding:0 0 12px;border:0">رابط بث Twitch المباشر (M3U8)</h2>
-      <p class="muted">شغّل بث قناتك ثم انسخ رابط الفيديو والصوت لاستخدامه في مشغل يدعم HLS.</p>
-      <div class="actions" style="padding:8px 0">
-        <input id="streamToken" type="password" autocomplete="off" placeholder="رمز التحكم من Render (STREAM_CONTROL_TOKEN)" style="min-width:240px;flex:1;padding:10px;border-radius:9px;border:1px solid #45495a;background:#101116;color:#fff">
-        <button class="button" id="startTwitchStream" type="button">تشغيل البث</button>
-        <button class="button" id="stopTwitchStream" type="button">إيقاف البث</button>
-        <button class="button" id="copyTwitchStream" type="button" disabled>نسخ رابط M3U8</button>
-      </div>
-      <div class="muted" id="twitchStreamStatus" aria-live="polite">حالة رابط البث: متوقف</div>
-      <p style="margin:10px 0 0;word-break:break-all"><a id="twitchStreamUrl" hidden target="_blank" rel="noopener"></a></p>
-    </section>
-
-    <div class="notice">
-      <strong>حالة الربط:</strong>
-      استقبال تعليقات TikTok يستخدم موصلًا غير رسمي وقد يتوقف إذا تغيّر نظام TikTok. لا يحتاج كلمة مرور حسابك، لكنه يعتمد على خدمة توقيع خارجية للاتصال.
-      تعليقات Kick لم تُربط بعد؛ نحتاج إعداد تطبيق Kick رسمي وتفعيل Webhook لصلاحية chat messages قبل ظهورها في القائمة.
-      لا تُعرض أي تعليقات وهمية، ولن تظهر الرسائل إلا بعد نجاح الاتصال الفعلي.
-      <br><br>
-      استخدم إعادة البث فقط للمحتوى الذي تملكه أو لديك إذن صريح بإعادة بثه.
-    </div>
-  </main>
-  <script>
-    const messages = document.getElementById("messages");
-    const emptyState = document.getElementById("emptyState");
-    let messageCount = 0;
-
-    function addMessage(item) {
-      if (!item || !item.message) return;
-      emptyState?.remove();
-      const card = document.createElement("article");
-      card.className = "message";
-
-      const top = document.createElement("div");
-      top.className = "message-top";
-      const platform = document.createElement("span");
-      platform.className = "platform " + (item.platform === "tiktok" ? "tiktok" : "kick");
-      platform.textContent = item.platform === "tiktok" ? "♪ TikTok" : "🟢 Kick";
-      const username = document.createElement("span");
-      username.className = "username";
-      username.textContent = item.username || "مستخدم";
-      top.append(platform, username);
-
-      const body = document.createElement("div");
-      body.className = "message-text";
-      body.textContent = item.message;
-      card.append(top, body);
-      messages.append(card);
-      messageCount++;
-      while (messages.children.length > 150) messages.removeChild(messages.firstChild);
-      messages.scrollTop = messages.scrollHeight;
-    }
-
-    fetch("/config")
-      .then(r => r.json())
-      .then(c => {
-        const twitch = c.twitchChannel || "r119_abdlull";
-        const kick = c.kickUsername || "cass-sa";
-        const tiktok = c.tiktokUsername || "cass_ksa_";
-        const parent = location.hostname;
-        document.getElementById("twitch").src =
-          "https://player.twitch.tv/?channel=" + encodeURIComponent(twitch) +
-          "&parent=" + encodeURIComponent(parent) + "&autoplay=false";
-        document.getElementById("twitchLink").href = "https://www.twitch.tv/" + twitch;
-        document.getElementById("kickLink").href = "https://kick.com/" + kick;
-        document.getElementById("tiktokLink").href = "https://www.tiktok.com/@" + tiktok;
-        document.getElementById("status").textContent = "جاهز — " + twitch;
-
-        async function refreshChatStatus() {
-          try {
-            const s = await fetch("/chat-status").then(r => r.json());
-            const t = document.getElementById("tiktokStatus");
-            const labels = {
-              connected: "متصل",
-              connecting: "جاري الاتصال",
-              starting: "يبدأ الاتصال",
-              offline_or_unavailable: "البث غير متاح حاليًا",
-              disconnected: "انقطع الاتصال"
-            };
-            t.textContent = "♪ TikTok: " + (labels[s.tiktok] || "غير معروف");
-            t.classList.toggle("online", s.tiktok === "connected");
-            document.getElementById("kickStatus").textContent =
-              "🟢 Kick: " + (s.kick === "connected" ? "متصل" : "بانتظار الربط الرسمي");
-          } catch {}
-        }
-        refreshChatStatus();
-        setInterval(refreshChatStatus, 10000);
-      })
-      .catch(() => {
-        document.getElementById("status").textContent = "تعذر تحميل الإعدادات";
-      });
-
-    const streamTokenInput = document.getElementById("streamToken");
-    const twitchStreamStatus = document.getElementById("twitchStreamStatus");
-    const twitchStreamUrl = document.getElementById("twitchStreamUrl");
-    const copyTwitchStream = document.getElementById("copyTwitchStream");
-
-    function showTwitchStreamStatus(data) {
-      const labels = { offline: "متوقف", starting: "جاري تجهيز البث…", live: "يعمل الآن" };
-      twitchStreamStatus.textContent = "حالة رابط البث: " + (labels[data.status] || data.status || "غير معروف") +
-        (data.error ? " — " + data.error : "");
-      const available = data.status === "live" || data.status === "starting";
-      if (available) {
-        const url = location.origin + "/live/twitch/index.m3u8";
-        twitchStreamUrl.href = url;
-        twitchStreamUrl.textContent = url;
-        twitchStreamUrl.hidden = false;
-        copyTwitchStream.disabled = false;
-      } else {
-        twitchStreamUrl.hidden = true;
-        copyTwitchStream.disabled = true;
-      }
-    }
-
-    async function refreshTwitchStreamStatus() {
-      try {
-        const response = await fetch("/twitch-stream/status");
-        showTwitchStreamStatus(await response.json());
-      } catch {
-        twitchStreamStatus.textContent = "تعذر قراءة حالة بث Twitch.";
-      }
-    }
-
-    async function controlTwitchStream(action) {
-      const token = streamTokenInput.value.trim();
-      if (!token) {
-        twitchStreamStatus.textContent = "أدخل رمز STREAM_CONTROL_TOKEN أولاً.";
-        streamTokenInput.focus();
-        return;
-      }
-      const button = document.getElementById(action === "start" ? "startTwitchStream" : "stopTwitchStream");
-      button.disabled = true;
-      try {
-        const response = await fetch("/twitch-stream/" + action, {
-          method: "POST",
-          headers: { "x-stream-control-token": token }
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "تعذر تنفيذ الطلب");
-        showTwitchStreamStatus(data);
-        await refreshTwitchStreamStatus();
-      } catch (error) {
-        twitchStreamStatus.textContent = error.message;
-      } finally {
-        button.disabled = false;
-      }
-    }
-
-    document.getElementById("startTwitchStream").addEventListener("click", () => controlTwitchStream("start"));
-    document.getElementById("stopTwitchStream").addEventListener("click", () => controlTwitchStream("stop"));
-    copyTwitchStream.addEventListener("click", async () => {
-      const url = location.origin + "/live/twitch/index.m3u8";
-      try {
-        await navigator.clipboard.writeText(url);
-        twitchStreamStatus.textContent = "تم نسخ رابط M3U8.";
-      } catch {
-        twitchStreamStatus.textContent = "انسخ الرابط الظاهر بالضغط المطوّل عليه.";
-      }
-    });
-    refreshTwitchStreamStatus();
-    setInterval(refreshTwitchStreamStatus, 5000);
-
-    const stream = new EventSource("/events");
-    stream.addEventListener("chat", event => {
-      try { addMessage(JSON.parse(event.data)); } catch {}
-    });
-    stream.onerror = () => {
-      document.getElementById("tiktokStatus").textContent = "♪ TikTok: إعادة محاولة الاتصال";
-      document.getElementById("tiktokStatus").classList.remove("online");
-    };
-  </script>
-</body>
-</html>
+<div class="app">
+<header class="topbar">
+ <div class="brand"><div class="logo">LIVE</div><div><h1>غرفة التحكم بالبث</h1><p>إدارة البث المباشر · Twitch / Restream / Kick / TikTok</p></div></div>
+ <div class="top-actions"><div class="pill"><span class="dot green"></span> لوحة التحكم متصلة</div><div class="pill" id="serviceStatus"><span class="dot"></span> جاري فحص الخدمة</div></div>
+</header>
+<main class="grid">
+ <div class="stack">
+  <section class="panel">
+   <div class="panel-head"><div><div class="eyebrow">LIVE MONITOR</div><h2 style="margin-top:4px">معاينة البث — Twitch</h2></div><span class="badge" id="previewState">معاينة القناة</span></div>
+   <div class="preview"><span class="preview-label">● PREVIEW</span><iframe id="twitch" allowfullscreen title="Twitch stream"></iframe></div>
+   <div class="preview-bottom"><span class="muted" id="channelLabel">القناة: —</span><div class="links"><a class="link" id="twitchLink" target="_blank" rel="noopener">فتح Twitch ↗</a><a class="link" id="kickLink" target="_blank" rel="noopener">فتح Kick ↗</a><a class="link" id="tiktokLink" target="_blank" rel="noopener">فتح TikTok ↗</a></div></div>
+  </section>
+  <section class="panel">
+   <div class="panel-head"><div><div class="eyebrow">OUTPUTS</div><h2 style="margin-top:4px">المنصات والوجهات</h2></div><span class="badge wait">حالة الاتصال المباشرة</span></div>
+   <div class="platforms">
+    <div class="platform-card"><div class="platform-title"><span>🟣 Twitch</span><span class="badge good">المصدر</span></div><div class="platform-state">مصدر الفيديو والصوت</div></div>
+    <div class="platform-card"><div class="platform-title"><span>🟢 Kick</span><span class="badge wait" id="kickBadge">بانتظار الشات</span></div><div class="platform-state" id="kickState">حالة ربط الدردشة</div></div>
+    <div class="platform-card"><div class="platform-title"><span>♪ TikTok</span><span class="badge wait" id="tiktokBadge">جاري الاتصال</span></div><div class="platform-state" id="tiktokState">حالة ربط الدردشة</div></div>
+   </div>
+  </section>
+  <section class="panel">
+   <div class="panel-head"><div><div class="eyebrow">STREAM CONTROLS</div><h2 style="margin-top:4px">التحكم برابط البث HLS</h2></div><span class="badge" id="hlsBadge">متوقف</span></div>
+   <div class="control-body">
+    <p class="muted" style="margin:0 0 12px">تشغيل أو إيقاف تحويل بث Twitch إلى رابط M3U8 مستقل.</p>
+    <input id="streamToken" class="token" type="password" autocomplete="off" placeholder="رمز التحكم STREAM_CONTROL_TOKEN">
+    <div class="control-row"><button class="btn success" id="startTwitchStream" type="button">▶ تشغيل HLS</button><button class="btn danger" id="stopTwitchStream" type="button">■ إيقاف HLS</button><button class="btn" id="copyTwitchStream" type="button" disabled>نسخ رابط M3U8</button></div>
+    <div class="statusline"><span class="dot" id="hlsDot"></span><span id="twitchStreamStatus">حالة رابط البث: متوقف</span></div>
+    <a class="url" id="twitchStreamUrl" hidden target="_blank" rel="noopener"></a>
+   </div>
+  </section>
+  <section class="metrics">
+   <div class="metric"><small>محرك إعادة البث</small><strong>FFmpeg</strong><div class="sub">نسخ مباشر للصوت والصورة</div></div>
+   <div class="metric"><small>وجهة الإرسال</small><strong>Restream</strong><div class="sub">إلى الوجهات المرتبطة بحسابك</div></div>
+   <div class="metric"><small>نمط التشغيل</small><strong>تلقائي مع الخدمة</strong><div class="sub">لا نغيّر إعدادات RTMP من الواجهة حاليًا</div></div>
+  </section>
+  <div class="notice"><strong>ملاحظة:</strong> أزرار HLS تتحكم برابط M3U8 فقط. إعادة البث الأساسية إلى Restream تعمل تلقائيًا من محرك worker عند تشغيل الخدمة. لا تعرض اللوحة حالة RTMP على أنها متصلة إلا بعد إضافة فحص حقيقي من الخادم.</div>
+ </div>
+ <aside class="panel">
+  <div class="panel-head"><div><div class="eyebrow">UNIFIED CHAT</div><h2 style="margin-top:4px">الشات الموحد</h2></div><span class="badge" id="messageCount">0 رسالة</span></div>
+  <div class="chat-wrap"><div class="chat-scroll" id="messages" aria-live="polite"><div class="empty" id="emptyState">بانتظار التعليقات…<br>ستظهر رسائل Kick وTikTok هنا مع شعار كل منصة.</div></div><div class="chat-foot"><span>Kick + TikTok</span><span>تحديث مباشر</span></div></div>
+ </aside>
+</main>
+</div>
+<script>
+const messages=document.getElementById("messages"),emptyState=document.getElementById("emptyState");let messageCount=0;
+function addMessage(item){if(!item||!item.message)return;emptyState?.remove();const card=document.createElement("article");card.className="message";const top=document.createElement("div");top.className="message-top";const platform=document.createElement("span");const isTikTok=item.platform==="tiktok";platform.className="platform-tag "+(isTikTok?"tiktok":"kick");platform.textContent=isTikTok?"♪ TikTok":"🟢 Kick";const username=document.createElement("span");username.className="username";username.textContent=item.username||"مستخدم";top.append(platform,username);const body=document.createElement("div");body.className="message-text";body.textContent=item.message;card.append(top,body);messages.append(card);messageCount++;document.getElementById("messageCount").textContent=messageCount+" رسالة";while(messages.children.length>150)messages.removeChild(messages.firstChild);messages.scrollTop=messages.scrollHeight}
+const streamTokenInput=document.getElementById("streamToken"),streamStatus=document.getElementById("twitchStreamStatus"),streamUrl=document.getElementById("twitchStreamUrl"),copyButton=document.getElementById("copyTwitchStream");
+function showStreamStatus(data){const labels={offline:"متوقف",starting:"جاري تجهيز البث…",live:"يعمل الآن"};streamStatus.textContent="حالة رابط البث: "+(labels[data.status]||data.status||"غير معروف")+(data.error?" — "+data.error:"");const live=data.status==="live"||data.status==="starting";document.getElementById("hlsBadge").textContent=labels[data.status]||"غير معروف";document.getElementById("hlsDot").className="dot"+(data.status==="live"?" green":data.status==="offline"?" red":"");if(live){const url=location.origin+"/live/twitch/index.m3u8";streamUrl.href=url;streamUrl.textContent=url;streamUrl.hidden=false;copyButton.disabled=false}else{streamUrl.hidden=true;copyButton.disabled=true}}
+async function refreshStreamStatus(){try{const r=await fetch("/twitch-stream/status");showStreamStatus(await r.json())}catch{streamStatus.textContent="تعذر قراءة حالة HLS"}}
+async function controlStream(action){const token=streamTokenInput.value.trim();if(!token){streamStatus.textContent="أدخل رمز STREAM_CONTROL_TOKEN أولاً.";streamTokenInput.focus();return}const button=document.getElementById(action==="start"?"startTwitchStream":"stopTwitchStream");button.disabled=true;try{const r=await fetch("/twitch-stream/"+action,{method:"POST",headers:{"x-stream-control-token":token}});const data=await r.json();if(!r.ok)throw new Error(data.error||"تعذر تنفيذ الطلب");showStreamStatus(data);await refreshStreamStatus()}catch(e){streamStatus.textContent=e.message}finally{button.disabled=false}}
+document.getElementById("startTwitchStream").addEventListener("click",()=>controlStream("start"));document.getElementById("stopTwitchStream").addEventListener("click",()=>controlStream("stop"));copyButton.addEventListener("click",async()=>{const url=location.origin+"/live/twitch/index.m3u8";try{await navigator.clipboard.writeText(url);streamStatus.textContent="تم نسخ رابط M3U8"}catch{streamStatus.textContent="انسخ الرابط الظاهر بالضغط المطوّل عليه"}});
+async function refreshChatStatus(){try{const s=await fetch("/chat-status").then(r=>r.json());const labels={connected:"متصل",connecting:"جاري الاتصال",starting:"يبدأ الاتصال",offline_or_unavailable:"البث غير متاح",disconnected:"انقطع الاتصال"};const t=s.tiktok||"unknown",k=s.kick||"pending_setup";document.getElementById("tiktokState").textContent=labels[t]||"غير معروف";document.getElementById("tiktokBadge").textContent=labels[t]||"غير معروف";document.getElementById("tiktokBadge").className="badge "+(t==="connected"?"good":"wait");document.getElementById("kickState").textContent=k==="connected"?"متصل ويستقبل الرسائل":"بانتظار اكتمال ربط الشات";document.getElementById("kickBadge").textContent=k==="connected"?"متصل":"غير متصل";document.getElementById("kickBadge").className="badge "+(k==="connected"?"good":"wait")}catch{}}
+fetch("/config").then(r=>r.json()).then(c=>{const twitch=c.twitchChannel||"r119_abdlull",kick=c.kickUsername||"cass-sa",tiktok=c.tiktokUsername||"cass_ksa_";const parent=location.hostname;document.getElementById("twitch").src="https://player.twitch.tv/?channel="+encodeURIComponent(twitch)+"&parent="+encodeURIComponent(parent)+"&autoplay=false";document.getElementById("twitchLink").href="https://www.twitch.tv/"+twitch;document.getElementById("kickLink").href="https://kick.com/"+kick;document.getElementById("tiktokLink").href="https://www.tiktok.com/@"+tiktok;document.getElementById("channelLabel").textContent="القناة: "+twitch;document.getElementById("serviceStatus").innerHTML='<span class="dot green"></span> الخدمة تستجيب';refreshChatStatus()}).catch(()=>{document.getElementById("serviceStatus").innerHTML='<span class="dot red"></span> تعذر الاتصال'});
+const events=new EventSource("/events");events.addEventListener("chat",e=>{try{addMessage(JSON.parse(e.data))}catch{}});events.onerror=()=>{document.getElementById("serviceStatus").innerHTML='<span class="dot"></span> إعادة الاتصال'};
+refreshStreamStatus();setInterval(refreshStreamStatus,5000);setInterval(refreshChatStatus,10000);
+</script>
+</body></html>
