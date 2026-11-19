@@ -7,8 +7,8 @@ const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
 
 if (restreamServer && restreamKey) {
-  const server = restreamServer.replace(/\\/+$/, "");
-  const key = restreamKey.replace(/^\\/+/, "");
+  const server = restreamServer.replace(/\/+$/, "");
+  const key = restreamKey.replace(/^\/+/, "");
   destinations.push(["Restream", server + "/" + key]);
 } else {
   if (restreamServer || restreamKey) {
