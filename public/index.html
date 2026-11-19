@@ -56,6 +56,19 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
     <a class="url" id="twitchStreamUrl" hidden target="_blank" rel="noopener"></a>
    </div>
   </section>
+
+  <section class="panel">
+   <div class="panel-head"><div><div class="eyebrow">VIDEO ATTACHMENTS</div><h2 style="margin-top:4px">مرفقات الفيديو — تشغيل يدوي LOOP</h2></div><span class="badge" id="mediaBadge">جاهز</span></div>
+   <div class="control-body">
+    <p class="muted" style="margin:0 0 12px">ارفع فيديو من جهازك، ثم شغّله على البث بشكل متكرر. عند الإيقاف يرجع بث Twitch تلقائيًا.</p>
+    <input id="mediaFile" class="token" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
+    <div class="control-row"><button class="btn primary" id="uploadMedia" type="button">＋ رفع المرفق</button><button class="btn" id="refreshMedia" type="button">↻ تحديث القائمة</button><button class="btn danger" id="stopMedia" type="button">■ إيقاف الفيديو والرجوع للبث</button></div>
+    <div id="mediaList" style="display:grid;gap:8px;margin-top:13px"></div>
+    <div class="statusline"><span class="dot" id="mediaDot"></span><span id="mediaStatus">أدخل رمز التحكم أعلاه لإدارة المرفقات.</span></div>
+    <p class="muted" style="margin:10px 0 0">الحد الأقصى 200 ميجابايت للفيديو. المرفقات محفوظة مؤقتًا وقد تختفي عند إعادة تشغيل Render أو إعادة النشر.</p>
+   </div>
+  </section>
+
   <section class="metrics">
    <div class="metric"><small>محرك إعادة البث</small><strong>FFmpeg</strong><div class="sub">نسخ مباشر للصوت والصورة</div></div>
    <div class="metric"><small>وجهة الإرسال</small><strong>Restream</strong><div class="sub">إلى الوجهات المرتبطة بحسابك</div></div>
@@ -77,6 +90,53 @@ function showStreamStatus(data){const labels={offline:"متوقف",starting:"ج�
 async function refreshStreamStatus(){try{const r=await fetch("/twitch-stream/status");showStreamStatus(await r.json())}catch{streamStatus.textContent="تعذر قراءة حالة HLS"}}
 async function controlStream(action){const token=streamTokenInput.value.trim();if(!token){streamStatus.textContent="أدخل رمز STREAM_CONTROL_TOKEN أولاً.";streamTokenInput.focus();return}const button=document.getElementById(action==="start"?"startTwitchStream":"stopTwitchStream");button.disabled=true;try{const r=await fetch("/twitch-stream/"+action,{method:"POST",headers:{"x-stream-control-token":token}});const data=await r.json();if(!r.ok)throw new Error(data.error||"تعذر تنفيذ الطلب");showStreamStatus(data);await refreshStreamStatus()}catch(e){streamStatus.textContent=e.message}finally{button.disabled=false}}
 document.getElementById("startTwitchStream").addEventListener("click",()=>controlStream("start"));document.getElementById("stopTwitchStream").addEventListener("click",()=>controlStream("stop"));copyButton.addEventListener("click",async()=>{const url=location.origin+"/live/twitch/index.m3u8";try{await navigator.clipboard.writeText(url);streamStatus.textContent="تم نسخ رابط M3U8"}catch{streamStatus.textContent="انسخ الرابط الظاهر بالضغط المطوّل عليه"}});
+
+const mediaFileInput=document.getElementById("mediaFile");
+const mediaStatus=document.getElementById("mediaStatus");
+const mediaList=document.getElementById("mediaList");
+function mediaAuthHeaders(){return {"x-stream-control-token":streamTokenInput.value.trim()}}
+function setMediaStatus(message,good=false){mediaStatus.textContent=message;document.getElementById("mediaDot").className="dot "+(good?"green":"");document.getElementById("mediaBadge").textContent=good?"جاهز":"المرفقات"}
+async function refreshMedia(){
+ const token=streamTokenInput.value.trim();if(!token){setMediaStatus("أدخل رمز التحكم أولاً.");return}
+ try{
+  const r=await fetch("/media/list",{headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر تحميل المرفقات");
+  mediaList.replaceChildren();
+  if(!d.files.length){const p=document.createElement("p");p.className="muted";p.textContent="لا توجد فيديوهات مرفوعة حتى الآن.";mediaList.append(p)}
+  for(const file of d.files){
+   const row=document.createElement("div");row.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#0c111a;border:1px solid #252d3b;border-radius:10px;padding:10px";
+   const info=document.createElement("span");info.style.cssText="font-size:12px;overflow-wrap:anywhere";info.textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB"+(d.active===file.name?" · يعمل LOOP":"");
+   const actions=document.createElement("div");actions.className="control-row";
+   const play=document.createElement("button");play.className="btn success";play.textContent="▶ تشغيل LOOP";play.addEventListener("click",()=>playMedia(file.name));
+   const del=document.createElement("button");del.className="btn danger";del.textContent="حذف";del.addEventListener("click",()=>deleteMedia(file.name));
+   actions.append(play,del);row.append(info,actions);mediaList.append(row);
+  }
+  setMediaStatus(d.active?"الفيديو يعمل حاليًا بنظام LOOP.":"قائمة المرفقات محدثة.",true);
+ }catch(e){setMediaStatus(e.message)}
+}
+async function uploadMedia(){
+ const file=mediaFileInput.files?.[0];if(!file){setMediaStatus("اختر ملف فيديو أولاً.");return}
+ if(file.size>200*1024*1024){setMediaStatus("حجم الفيديو أكبر من 200 ميجابايت.");return}
+ const button=document.getElementById("uploadMedia");button.disabled=true;setMediaStatus("جاري رفع الفيديو…");
+ try{
+  const r=await fetch("/media/upload",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/octet-stream","x-file-name":encodeURIComponent(file.name)},body:await file.arrayBuffer()});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||"فشل رفع الفيديو");
+  mediaFileInput.value="";setMediaStatus("تم رفع الفيديو بنجاح.",true);await refreshMedia();
+ }catch(e){setMediaStatus(e.message)}finally{button.disabled=false}
+}
+async function playMedia(name){
+ try{const r=await fetch("/media/play",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/json"},body:JSON.stringify({name})});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر تشغيل الفيديو");setMediaStatus("الفيديو يعمل الآن بنظام LOOP. اضغط إيقاف للرجوع إلى Twitch.",true);await refreshMedia()}catch(e){setMediaStatus(e.message)}
+}
+async function stopMedia(){
+ try{const r=await fetch("/media/stop",{method:"POST",headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر إيقاف الفيديو");setMediaStatus("تم طلب الرجوع إلى بث Twitch.",true);await refreshMedia()}catch(e){setMediaStatus(e.message)}
+}
+async function deleteMedia(name){
+ if(!confirm("حذف هذا الفيديو من المرفقات؟"))return;
+ try{const r=await fetch("/media/"+encodeURIComponent(name),{method:"DELETE",headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حذف الملف");setMediaStatus("تم حذف المرفق.",true);await refreshMedia()}catch(e){setMediaStatus(e.message)}
+}
+document.getElementById("uploadMedia").addEventListener("click",uploadMedia);
+document.getElementById("refreshMedia").addEventListener("click",refreshMedia);
+document.getElementById("stopMedia").addEventListener("click",stopMedia);
+
 async function refreshRestreamStatus(){try{const d=await fetch("/restream/status").then(r=>r.json());const running=d.status==="running";document.getElementById("rtmpStatus").textContent="محرك RTMP: "+(running?"يعمل"+(d.pid?" · PID "+d.pid:""):"متوقف")+(d.configured?" · الإعدادات موجودة":" · إعدادات الوجهة ناقصة");document.getElementById("rtmpBadge").textContent=running?"يعمل":"متوقف";document.getElementById("rtmpBadge").className="badge "+(running?"good":"wait");document.getElementById("rtmpDot").className="dot "+(running?"green":"red")}catch{document.getElementById("rtmpStatus").textContent="تعذر قراءة حالة محرك RTMP"}}
 async function controlRestream(action){const token=streamTokenInput.value.trim();if(!token){streamStatus.textContent="أدخل رمز STREAM_CONTROL_TOKEN أولاً.";streamTokenInput.focus();return}const button=document.getElementById(action==="start"?"startRestream":"stopRestream");button.disabled=true;try{const r=await fetch("/restream/"+action,{method:"POST",headers:{"x-stream-control-token":token}});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر تنفيذ الطلب");document.getElementById("rtmpStatus").textContent="طلب "+(action==="start"?"تشغيل":"إيقاف")+" محرك RTMP تم إرساله";await refreshRestreamStatus()}catch(e){document.getElementById("rtmpStatus").textContent=e.message}finally{button.disabled=false}}
 document.getElementById("startRestream").addEventListener("click",()=>controlRestream("start"));document.getElementById("stopRestream").addEventListener("click",()=>controlRestream("stop"));document.getElementById("refreshRestream").addEventListener("click",refreshRestreamStatus);
