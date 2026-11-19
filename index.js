@@ -2,6 +2,8 @@ const express = require("express");
 const path = require("path");
 const { spawn } = require("child_process");
 const crypto = require("crypto");
+const fs = require("fs");
+const os = require("os");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +17,12 @@ let kickPublicKeyPromise = null;
 const seenKickEvents = new Map();
 
 app.disable("x-powered-by");
+app.use(express.json({ limit: "1mb" }));
+
+const mediaDirectory = path.join(os.tmpdir(), "live-control-media");
+fs.mkdirSync(mediaDirectory, { recursive: true });
+const allowedVideoExtensions = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
+const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
 
 async function getKickPublicKey() {
   if (!kickPublicKeyPromise) {
@@ -357,6 +365,68 @@ function restreamConfigured() {
     process.env.KICK_RTMP_URL || process.env.TIKTOK_RTMP_URL
   );
 }
+
+
+function mediaFiles() {
+  return fs.readdirSync(mediaDirectory)
+    .filter(name => allowedVideoExtensions.has(path.extname(name).toLowerCase()))
+    .map(name => {
+      const stat = fs.statSync(path.join(mediaDirectory, name));
+      return { name, size: stat.size, updatedAt: stat.mtimeMs };
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+app.get("/media/list", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  return res.json({ files: mediaFiles(), active: activeMediaFile });
+});
+
+let activeMediaFile = null;
+
+app.post("/media/upload", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  const originalName = decodeURIComponent(String(req.get("x-file-name") || "video.mp4")).replace(/\\/g, "/").split("/").pop();
+  const extension = path.extname(originalName).toLowerCase();
+  if (!allowedVideoExtensions.has(extension)) return res.status(400).json({ error: "صيغة الفيديو غير مدعومة. استخدم MP4 أو MOV أو WEBM أو MKV." });
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "ملف الفيديو فارغ." });
+  if (req.body.length > MAX_MEDIA_BYTES) return res.status(413).json({ error: "الحد الأقصى لحجم الفيديو 200 ميجابايت." });
+  const filename = crypto.randomUUID() + extension;
+  fs.writeFileSync(path.join(mediaDirectory, filename), req.body, { flag: "wx" });
+  return res.status(201).json({ ok: true, file: { name: filename, size: req.body.length } });
+});
+
+app.post("/media/play", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  if (!restreamWorker || !restreamWorker.connected) return res.status(503).json({ error: "محرك RTMP غير متصل. شغّل إعادة البث أولاً." });
+  const name = String(req.body?.name || "");
+  if (!name || path.basename(name) !== name || !allowedVideoExtensions.has(path.extname(name).toLowerCase())) {
+    return res.status(400).json({ error: "اختر فيديو صالحًا من المرفقات." });
+  }
+  const filePath = path.join(mediaDirectory, name);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "الفيديو غير موجود. ربما حُذف بعد إعادة تشغيل Render." });
+  activeMediaFile = name;
+  restreamWorker.send({ type: "overlay-start", filePath });
+  return res.status(202).json({ ok: true, status: "playing_loop", name });
+});
+
+app.post("/media/stop", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  activeMediaFile = null;
+  if (restreamWorker?.connected) restreamWorker.send({ type: "overlay-stop" });
+  return res.json({ ok: true, status: "returning_to_live" });
+});
+
+app.delete("/media/:name", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  const name = String(req.params.name || "");
+  if (!name || path.basename(name) !== name) return res.status(400).json({ error: "اسم ملف غير صالح." });
+  if (activeMediaFile === name) return res.status(409).json({ error: "أوقف الفيديو قبل حذفه." });
+  const filePath = path.join(mediaDirectory, name);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "الملف غير موجود." });
+  fs.unlinkSync(filePath);
+  return res.json({ ok: true });
+});
 
 app.get("/restream/status", (_req, res) => {
   res.json({
