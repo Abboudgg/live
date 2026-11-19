@@ -43,22 +43,9 @@ const ffmpegArgs = [
   "-i", "pipe:0",
   "-map", "0:v:0?",
   "-map", "0:a:0?",
-  "-vf", "scale=-2:720",
-  "-c:v", "libx264",
-  "-preset", "ultrafast",
-  "-tune", "zerolatency",
-  "-pix_fmt", "yuv420p",
-  "-profile:v", "main",
-  "-r", "30",
-  "-g", "60",
-  "-keyint_min", "60",
-  "-b:v", "2500k",
-  "-maxrate", "2500k",
-  "-bufsize", "5000k",
-  "-c:a", "aac",
-  "-b:a", "128k",
-  "-ac", "2",
-  "-ar", "44100",
+  // Copy Twitch's H.264/AAC streams without re-encoding to reduce CPU use on Render Free.
+  "-c:v", "copy",
+  "-c:a", "copy",
   "-max_muxing_queue_size", "1024"
 ];
 
