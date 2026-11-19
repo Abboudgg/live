@@ -111,7 +111,7 @@ app.get("/kick/connect", (req, res) => {
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: "user:read events:subscribe",
+    scope: "user:read channel:read events:subscribe",
     code_challenge: challenge,
     code_challenge_method: "S256",
     state
