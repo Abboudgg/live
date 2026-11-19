@@ -1,4 +1,5 @@
 const { spawn } = require("child_process");
+const path = require("path");
 
 const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
@@ -118,6 +119,47 @@ async function runAttempt() {
   });
 }
 
+
+async function runStandby() {
+  console.log("Twitch is offline. Showing the maroon waiting screen for 20 seconds.");
+  const textFile = path.join(__dirname, "waiting.txt");
+  const args = [
+    "-hide_banner", "-loglevel", "warning",
+    "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
+    "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+    "-vf", `drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf:textfile=${textFile}:fontcolor=white:fontsize=76:x=(w-text_w)/2:y=(h-text_h)/2:text_shaping=1`,
+    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+    "-b:v", "1200k", "-maxrate", "1200k", "-bufsize", "2400k",
+    "-g", "60", "-keyint_min", "60",
+    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+    "-f", "flv", destinations[0][1]
+  ];
+  const standby = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
+  activeChildren = [standby];
+
+  await new Promise(resolve => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (!standby.killed) standby.kill("SIGTERM");
+      resolve();
+    };
+    const timer = setTimeout(finish, 20000);
+    standby.on("error", error => {
+      console.error("Could not start waiting screen:", error.message);
+      finish();
+    });
+    standby.on("close", code => {
+      console.log("Waiting screen ended with code:", code);
+      finish();
+    });
+  });
+
+  activeChildren = [];
+}
+
 async function main() {
   while (!stopping) {
     const result = await runAttempt();
@@ -134,9 +176,9 @@ async function main() {
       );
 
     if (twitchOffline) {
-      console.log("Twitch stream is offline. Restream worker will stop.");
-      process.exitCode = 0;
-      break;
+      await runStandby();
+      if (!stopping) await sleep(2000);
+      continue;
     }
 
     console.warn("Stream connection ended unexpectedly. Retrying in 5 seconds...");
