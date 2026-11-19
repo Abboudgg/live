@@ -1,4 +1,5 @@
 const { spawn } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 
 const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
@@ -33,6 +34,20 @@ if (destinations.length === 0) {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 let stopping = false;
 let activeChildren = [];
+let manualOverlayFile = null;
+let overlayRevision = 0;
+
+process.on("message", message => {
+  if (message?.type === "overlay-start" && typeof message.filePath === "string") {
+    manualOverlayFile = message.filePath;
+    overlayRevision++;
+    console.log("Manual video overlay requested:", path.basename(message.filePath));
+  } else if (message?.type === "overlay-stop") {
+    manualOverlayFile = null;
+    overlayRevision++;
+    console.log("Manual video overlay stop requested.");
+  }
+});
 
 function stopChildren() {
   for (const child of activeChildren) {
@@ -189,6 +204,54 @@ async function runStandbyUntilLive() {
   await Promise.race([ended, sleep(3000)]);
   activeChildren = [];
 }
+
+async function runManualOverlayUntilStopped() {
+  while (!stopping && manualOverlayFile) {
+    const filePath = manualOverlayFile;
+    if (!fs.existsSync(filePath)) {
+      console.error("Manual video file disappeared:", filePath);
+      manualOverlayFile = null;
+      break;
+    }
+    console.log("Playing manual video in loop:", path.basename(filePath));
+    const args = [
+      "-hide_banner", "-loglevel", "warning",
+      "-stream_loop", "-1", "-re", "-i", filePath,
+      "-map", "0:v:0", "-map", "0:a:0?",
+      "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+      "-pix_fmt", "yuv420p", "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+      "-g", "60", "-keyint_min", "60",
+      "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+      "-f", "flv", destinations[0][1]
+    ];
+    const overlay = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
+    activeChildren = [overlay];
+    await new Promise(resolve => {
+      overlay.once("error", error => {
+        console.error("Manual video FFmpeg error:", error.message);
+        resolve();
+      });
+      overlay.once("close", code => {
+        console.log("Manual video FFmpeg ended with code:", code);
+        resolve();
+      });
+      const check = setInterval(() => {
+        if (stopping || !manualOverlayFile) {
+          clearInterval(check);
+          if (!overlay.killed) overlay.kill("SIGTERM");
+        }
+      }, 250);
+      overlay.once("close", () => clearInterval(check));
+    });
+    activeChildren = [];
+    if (manualOverlayFile === filePath && !stopping) {
+      console.warn("Manual video encoder stopped unexpectedly; retrying in 3 seconds.");
+      await sleep(3000);
+    }
+  }
+  console.log("Manual video mode ended; returning to Twitch live stream.");
+}
+
 async function main() {
   while (!stopping) {
     const result = await runAttempt();
