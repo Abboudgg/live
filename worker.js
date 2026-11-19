@@ -236,7 +236,7 @@ async function runManualOverlayUntilStopped() {
         resolve();
       });
       const check = setInterval(() => {
-        if (stopping || !manualOverlayFile) {
+        if (stopping || !manualOverlayFile || manualOverlayFile !== filePath) {
           clearInterval(check);
           if (!overlay.killed) overlay.kill("SIGTERM");
         }
