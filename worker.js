@@ -7,8 +7,8 @@ const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
 
 if (restreamServer && restreamKey) {
-  const server = restreamServer.replace(/\/+$/, "");
-  const key = restreamKey.replace(/^\/+/, "");
+  const server = restreamServer.replace(/\\/+$/, "");
+  const key = restreamKey.replace(/^\\/+/, "");
   destinations.push(["Restream", server + "/" + key]);
 } else {
   if (restreamServer || restreamKey) {
@@ -29,76 +29,132 @@ if (destinations.length === 0) {
   process.exit(1);
 }
 
-console.log("Starting Twitch restream:", twitchUrl);
-console.log("Configured destinations:", destinations.map(([name]) => name).join(", "));
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+let stopping = false;
+let activeChildren = [];
 
-const streamlink = spawn("streamlink", ["--stdout", twitchUrl, "best"], {
-  stdio: ["ignore", "pipe", "inherit"]
-});
-
-const ffmpegArgs = [
-  "-hide_banner",
-  "-loglevel", "info",
-  "-fflags", "+genpts",
-  "-i", "pipe:0",
-  "-map", "0:v:0?",
-  "-map", "0:a:0?",
-  // Copy Twitch's H.264/AAC streams without re-encoding to reduce CPU use on Render Free.
-  "-c:v", "copy",
-  "-c:a", "copy",
-  "-max_muxing_queue_size", "1024"
-];
-
-if (destinations.length === 1) {
-  // Send FLV directly to the RTMP endpoint; bypass the FIFO recovery layer for diagnosis.
-  ffmpegArgs.push("-f", "flv", destinations[0][1]);
-} else {
-  const teeTargets = destinations
-    .map(([, url]) => `[f=flv:onfail=ignore]${url}`)
-    .join("|");
-  ffmpegArgs.push("-f", "tee", teeTargets);
+function stopChildren() {
+  for (const child of activeChildren) {
+    if (child && !child.killed) child.kill("SIGTERM");
+  }
+  activeChildren = [];
 }
 
-const ffmpeg = spawn("ffmpeg", ffmpegArgs, {
-  stdio: ["pipe", "inherit", "inherit"]
-});
+async function runAttempt() {
+  console.log("Starting Twitch restream:", twitchUrl);
+  console.log("Configured destinations:", destinations.map(([name]) => name).join(", "));
 
-streamlink.stdout.pipe(ffmpeg.stdin);
+  const streamlink = spawn("streamlink", ["--stdout", twitchUrl, "best"], {
+    stdio: ["ignore", "pipe", "pipe"]
+  });
 
-let stopping = false;
-function stop(code = 0) {
+  const ffmpegArgs = [
+    "-hide_banner",
+    "-loglevel", "info",
+    "-fflags", "+genpts",
+    "-i", "pipe:0",
+    "-map", "0:v:0?",
+    "-map", "0:a:0?",
+    "-c:v", "copy",
+    "-c:a", "copy",
+    "-max_muxing_queue_size", "1024"
+  ];
+
+  if (destinations.length === 1) {
+    ffmpegArgs.push("-f", "flv", destinations[0][1]);
+  } else {
+    const teeTargets = destinations
+      .map(([, url]) => `[f=flv:onfail=ignore]${url}`)
+      .join("|");
+    ffmpegArgs.push("-f", "tee", teeTargets);
+  }
+
+  const ffmpeg = spawn("ffmpeg", ffmpegArgs, {
+    stdio: ["pipe", "inherit", "inherit"]
+  });
+
+  activeChildren = [streamlink, ffmpeg];
+  streamlink.stdout.pipe(ffmpeg.stdin);
+
+  let streamlinkError = "";
+  streamlink.stderr.on("data", chunk => {
+    const line = chunk.toString();
+    process.stderr.write(line);
+    streamlinkError = (streamlinkError + line).slice(-12000);
+  });
+
+  ffmpeg.stdin.on("error", error => {
+    if (error.code !== "EPIPE") console.error("FFmpeg input pipe error:", error.message);
+  });
+
+  return await new Promise(resolve => {
+    let settled = false;
+    const finish = result => {
+      if (settled) return;
+      settled = true;
+      stopChildren();
+      resolve({ ...result, streamlinkError });
+    };
+
+    streamlink.on("error", error => {
+      console.error("Could not start Streamlink:", error.message);
+      finish({ source: "streamlink", code: 1 });
+    });
+
+    ffmpeg.on("error", error => {
+      console.error("Could not start FFmpeg:", error.message);
+      finish({ source: "ffmpeg", code: 1 });
+    });
+
+    streamlink.on("close", code => {
+      console.log("Streamlink ended with code:", code);
+      finish({ source: "streamlink", code });
+    });
+
+    ffmpeg.on("close", code => {
+      console.error("FFmpeg ended with code:", code);
+      finish({ source: "ffmpeg", code });
+    });
+  });
+}
+
+async function main() {
+  while (!stopping) {
+    const result = await runAttempt();
+    if (stopping) break;
+
+    const message = result.streamlinkError.toLowerCase();
+    const twitchOffline =
+      result.source === "streamlink" &&
+      (
+        message.includes("no playable streams found") ||
+        message.includes("is offline") ||
+        message.includes("stream is offline") ||
+        message.includes("no streams found")
+      );
+
+    if (twitchOffline) {
+      console.log("Twitch stream is offline. Restream worker will stop.");
+      process.exitCode = 0;
+      break;
+    }
+
+    console.warn("Stream connection ended unexpectedly. Retrying in 5 seconds...");
+    await sleep(5000);
+  }
+}
+
+function shutdown() {
   if (stopping) return;
   stopping = true;
-  if (!streamlink.killed) streamlink.kill("SIGTERM");
-  if (!ffmpeg.killed) ffmpeg.kill("SIGTERM");
-  process.exitCode = code;
+  stopChildren();
 }
 
-streamlink.on("error", err => {
-  console.error("Could not start Streamlink:", err.message);
-  stop(1);
-});
-ffmpeg.on("error", err => {
-  console.error("Could not start FFmpeg:", err.message);
-  stop(1);
-});
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
-// FFmpeg can close its input during an RTMP failure; handle EPIPE without crashing Node.
-ffmpeg.stdin.on("error", err => {
-  if (err.code !== "EPIPE") console.error("FFmpeg input pipe error:", err.message);
+main().catch(error => {
+  console.error("Restream worker error:", error?.message || error);
+  shutdown();
+  process.exitCode = 1;
 });
-
-streamlink.on("close", code => {
-  if (!stopping) {
-    console.error("Streamlink ended with code:", code);
-    stop(code || 1);
-  }
-});
-ffmpeg.on("close", code => {
-  if (!stopping) {
-    console.error("FFmpeg ended with code:", code);
-    stop(code || 1);
-  }
-});
-process.on("SIGTERM", () => stop(0));
-process.on("SIGINT", () => stop(0));
