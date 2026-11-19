@@ -50,16 +50,8 @@ const ffmpegArgs = [
 ];
 
 if (destinations.length === 1) {
-  // FIFO muxer retries temporary RTMP failures instead of immediately exiting.
-  ffmpegArgs.push(
-    "-f", "fifo",
-    "-fifo_format", "flv",
-    "-attempt_recovery", "1",
-    "-recover_any_error", "1",
-    "-recovery_wait_time", "1",
-    "-drop_pkts_on_overflow", "1",
-    destinations[0][1]
-  );
+  // Send FLV directly to the RTMP endpoint; bypass the FIFO recovery layer for diagnosis.
+  ffmpegArgs.push("-f", "flv", destinations[0][1]);
 } else {
   const teeTargets = destinations
     .map(([, url]) => `[f=flv:onfail=ignore]${url}`)
