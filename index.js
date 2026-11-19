@@ -339,7 +339,7 @@ function startRestreamWorker() {
   console.log("RTMP destinations configured; starting Twitch restream worker.");
   restreamWorker = spawn(process.execPath, [path.join(__dirname, "worker.js")], {
     env: process.env,
-    stdio: "inherit"
+    stdio: ["ignore", "inherit", "inherit", "ipc"]
   });
   restreamWorker.on("error", error => {
     console.error("Could not start Twitch restream worker:", error.message);
@@ -384,7 +384,7 @@ app.get("/media/list", (req, res) => {
 
 let activeMediaFile = null;
 
-app.post("/media/upload", (req, res) => {
+app.post("/media/upload", express.raw({ type: "application/octet-stream", limit: MAX_MEDIA_BYTES }), (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   const originalName = decodeURIComponent(String(req.get("x-file-name") || "video.mp4")).replace(/\\/g, "/").split("/").pop();
   const extension = path.extname(originalName).toLowerCase();
