@@ -36,10 +36,6 @@ const streamlink = spawn("streamlink", ["--stdout", twitchUrl, "best"], {
   stdio: ["ignore", "pipe", "inherit"]
 });
 
-const teeTargets = destinations
-  .map(([, url]) => `[f=flv:onfail=ignore]${url}`)
-  .join("|");
-
 const ffmpegArgs = [
   "-hide_banner",
   "-loglevel", "info",
@@ -47,25 +43,42 @@ const ffmpegArgs = [
   "-i", "pipe:0",
   "-map", "0:v:0?",
   "-map", "0:a:0?",
+  "-vf", "scale=-2:720",
   "-c:v", "libx264",
-  "-preset", "veryfast",
+  "-preset", "ultrafast",
   "-tune", "zerolatency",
   "-pix_fmt", "yuv420p",
-  "-profile:v", "high",
+  "-profile:v", "main",
   "-r", "30",
   "-g", "60",
   "-keyint_min", "60",
-  "-b:v", "4500k",
-  "-maxrate", "4500k",
-  "-bufsize", "9000k",
+  "-b:v", "2500k",
+  "-maxrate", "2500k",
+  "-bufsize", "5000k",
   "-c:a", "aac",
-  "-b:a", "160k",
+  "-b:a", "128k",
   "-ac", "2",
   "-ar", "44100",
-  "-max_muxing_queue_size", "1024",
-  "-f", "tee",
-  teeTargets
+  "-max_muxing_queue_size", "1024"
 ];
+
+if (destinations.length === 1) {
+  // FIFO muxer retries temporary RTMP failures instead of immediately exiting.
+  ffmpegArgs.push(
+    "-f", "fifo",
+    "-fifo_format", "flv",
+    "-attempt_recovery", "1",
+    "-recover_any_error", "1",
+    "-recovery_wait_time", "1",
+    "-drop_pkts_on_overflow", "1",
+    destinations[0][1]
+  );
+} else {
+  const teeTargets = destinations
+    .map(([, url]) => `[f=flv:onfail=ignore]${url}`)
+    .join("|");
+  ffmpegArgs.push("-f", "tee", teeTargets);
+}
 
 const ffmpeg = spawn("ffmpeg", ffmpegArgs, {
   stdio: ["pipe", "inherit", "inherit"]
@@ -90,6 +103,12 @@ ffmpeg.on("error", err => {
   console.error("Could not start FFmpeg:", err.message);
   stop(1);
 });
+
+// FFmpeg can close its input during an RTMP failure; handle EPIPE without crashing Node.
+ffmpeg.stdin.on("error", err => {
+  if (err.code !== "EPIPE") console.error("FFmpeg input pipe error:", err.message);
+});
+
 streamlink.on("close", code => {
   if (!stopping) {
     console.error("Streamlink ended with code:", code);
