@@ -1,39 +1,57 @@
 const { spawn } = require("child_process");
 
-const twitchChannel = process.env.TWITCH_CHANNEL || "r119_abdlull";
+const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
 const destinations = [
-  process.env.KICK_RTMP_URL,
-  process.env.TIKTOK_RTMP_URL
-].filter(Boolean);
+  ["Kick", process.env.KICK_RTMP_URL],
+  ["TikTok", process.env.TIKTOK_RTMP_URL]
+].filter(([, url]) => Boolean(url));
 
 if (destinations.length === 0) {
   console.error("Set KICK_RTMP_URL and/or TIKTOK_RTMP_URL as secret environment variables.");
   process.exit(1);
 }
 
-const missing = [];
-if (!process.env.KICK_RTMP_URL) missing.push("KICK_RTMP_URL");
-if (!process.env.TIKTOK_RTMP_URL) missing.push("TIKTOK_RTMP_URL");
-if (missing.length) {
-  console.warn("One destination is not configured:", missing.join(", "));
+for (const name of ["Kick", "TikTok"]) {
+  if (!destinations.some(([destination]) => destination === name)) {
+    console.warn(name + " RTMP destination is not configured.");
+  }
 }
 
-console.log("Starting authorized Twitch restream:", twitchUrl);
-console.log("Configured RTMP destinations:", destinations.length);
+console.log("Starting Twitch restream:", twitchUrl);
+console.log("Configured destinations:", destinations.map(([name]) => name).join(", "));
 
 const streamlink = spawn("streamlink", ["--stdout", twitchUrl, "best"], {
   stdio: ["ignore", "pipe", "inherit"]
 });
 
-const teeTargets = destinations.map(url => `[f=flv]${url}`).join("|");
+const teeTargets = destinations
+  .map(([, url]) => `[f=flv:onfail=ignore]${url}`)
+  .join("|");
+
 const ffmpegArgs = [
   "-hide_banner",
-  "-loglevel", "warning",
+  "-loglevel", "info",
+  "-fflags", "+genpts",
   "-i", "pipe:0",
   "-map", "0:v:0?",
   "-map", "0:a:0?",
-  "-c", "copy",
+  "-c:v", "libx264",
+  "-preset", "veryfast",
+  "-tune", "zerolatency",
+  "-pix_fmt", "yuv420p",
+  "-profile:v", "high",
+  "-r", "30",
+  "-g", "60",
+  "-keyint_min", "60",
+  "-b:v", "4500k",
+  "-maxrate", "4500k",
+  "-bufsize", "9000k",
+  "-c:a", "aac",
+  "-b:a", "160k",
+  "-ac", "2",
+  "-ar", "44100",
+  "-max_muxing_queue_size", "1024",
   "-f", "tee",
   teeTargets
 ];
@@ -48,8 +66,8 @@ let stopping = false;
 function stop(code = 0) {
   if (stopping) return;
   stopping = true;
-  streamlink.kill("SIGTERM");
-  ffmpeg.kill("SIGTERM");
+  if (!streamlink.killed) streamlink.kill("SIGTERM");
+  if (!ffmpeg.killed) ffmpeg.kill("SIGTERM");
   process.exitCode = code;
 }
 
