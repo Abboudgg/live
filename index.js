@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const { spawn } = require("child_process");
 const crypto = require("crypto");
 
 const app = express();
@@ -273,7 +274,29 @@ async function startTikTokChat() {
 
 require("./twitch-hls")(app);
 
+let restreamWorker = null;
+function startRestreamWorker() {
+  const configured = Boolean(process.env.KICK_RTMP_URL || process.env.TIKTOK_RTMP_URL);
+  if (!configured || restreamWorker) return;
+  console.log("RTMP destinations configured; starting Twitch restream worker.");
+  restreamWorker = spawn(process.execPath, [path.join(__dirname, "worker.js")], {
+    env: process.env,
+    stdio: "inherit"
+  });
+  restreamWorker.on("error", error => {
+    console.error("Could not start Twitch restream worker:", error.message);
+    restreamWorker = null;
+  });
+  restreamWorker.on("close", code => {
+    console.error("Twitch restream worker stopped with code:", code);
+    restreamWorker = null;
+  });
+}
+process.on("SIGTERM", () => restreamWorker?.kill("SIGTERM"));
+process.on("SIGINT", () => restreamWorker?.kill("SIGINT"));
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Web dashboard listening on port ${PORT}`);
   startTikTokChat().catch(error => console.error("TikTok chat startup error:", error));
+  startRestreamWorker();
 });
