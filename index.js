@@ -341,7 +341,7 @@ app.post("/restream/stop", (req, res) => {
   if (!restreamWorker) return res.json({ ok: true, status: "stopped" });
   restreamWorker.kill("SIGTERM");
   return res.status(202).json({ ok: true, status: "stopping" });
-}
+});
 
 process.on("SIGTERM", () => restreamWorker?.kill("SIGTERM"));
 process.on("SIGINT", () => restreamWorker?.kill("SIGINT"));
