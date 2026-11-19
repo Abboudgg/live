@@ -41,6 +41,7 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
    <div class="panel-head"><div><div class="eyebrow">RTMP RELAY</div><h2 style="margin-top:4px">التحكم بإعادة البث إلى Restream</h2></div><span class="badge wait" id="rtmpBadge">جاري الفحص</span></div>
    <div class="control-body">
     <p class="muted" style="margin:0 0 12px">تحكم بمحرك Streamlink + FFmpeg الذي يرسل بث Twitch إلى وجهة RTMP.</p>
+    <input id="streamToken" class="token" type="password" autocomplete="off" placeholder="رمز التحكم STREAM_CONTROL_TOKEN">
     <div class="control-row"><button class="btn success" id="startRestream" type="button">▶ تشغيل RTMP</button><button class="btn danger" id="stopRestream" type="button">■ إيقاف RTMP</button><button class="btn" id="refreshRestream" type="button">↻ تحديث الحالة</button></div>
     <div class="statusline"><span class="dot" id="rtmpDot"></span><span id="rtmpStatus">حالة محرك RTMP: جاري الفحص</span></div>
    </div>
@@ -49,7 +50,7 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
    <div class="panel-head"><div><div class="eyebrow">STREAM CONTROLS</div><h2 style="margin-top:4px">التحكم برابط البث HLS</h2></div><span class="badge" id="hlsBadge">متوقف</span></div>
    <div class="control-body">
     <p class="muted" style="margin:0 0 12px">تشغيل أو إيقاف تحويل بث Twitch إلى رابط M3U8 مستقل.</p>
-    <input id="streamToken" class="token" type="password" autocomplete="off" placeholder="رمز التحكم STREAM_CONTROL_TOKEN">
+
     <div class="control-row"><button class="btn success" id="startTwitchStream" type="button">▶ تشغيل HLS</button><button class="btn danger" id="stopTwitchStream" type="button">■ إيقاف HLS</button><button class="btn" id="copyTwitchStream" type="button" disabled>نسخ رابط M3U8</button></div>
     <div class="statusline"><span class="dot" id="hlsDot"></span><span id="twitchStreamStatus">حالة رابط البث: متوقف</span></div>
     <a class="url" id="twitchStreamUrl" hidden target="_blank" rel="noopener"></a>
