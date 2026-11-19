@@ -329,25 +329,72 @@ async function startTikTokChat() {
 require("./twitch-hls")(app);
 
 let restreamWorker = null;
+let restreamWorkerState = "stopped";
+let restreamStopRequested = false;
+let restreamRestartTimer = null;
+let restreamStableTimer = null;
+let restreamRestartAttempts = 0;
+
+function scheduleRestreamRestart(reason) {
+  if (restreamStopRequested || !restreamConfigured() || restreamRestartTimer) return;
+  restreamRestartAttempts++;
+  const delay = Math.min(30000, 3000 * (2 ** Math.min(restreamRestartAttempts - 1, 4)));
+  restreamWorkerState = "restarting";
+  console.warn(`RTMP worker will restart in ${Math.round(delay / 1000)}s (attempt ${restreamRestartAttempts}): ${reason}`);
+  restreamRestartTimer = setTimeout(() => {
+    restreamRestartTimer = null;
+    startRestreamWorker();
+  }, delay);
+}
+
 function startRestreamWorker() {
   const hasRestream = Boolean(
     process.env.RESTREAM_RTMP_URL?.trim() && process.env.RESTREAM_STREAM_KEY?.trim()
   );
   const hasDirectDestination = Boolean(process.env.KICK_RTMP_URL || process.env.TIKTOK_RTMP_URL);
   const configured = hasRestream || hasDirectDestination;
-  if (!configured || restreamWorker) return;
+  if (!configured || restreamWorker || restreamStopRequested) return;
+  if (restreamRestartTimer) {
+    clearTimeout(restreamRestartTimer);
+    restreamRestartTimer = null;
+  }
   console.log("RTMP destinations configured; starting Twitch restream worker.");
-  restreamWorker = spawn(process.execPath, [path.join(__dirname, "worker.js")], {
+  restreamWorkerState = "starting";
+  const worker = spawn(process.execPath, [path.join(__dirname, "worker.js")], {
     env: process.env,
     stdio: ["ignore", "inherit", "inherit", "ipc"]
   });
-  restreamWorker.on("error", error => {
-    console.error("Could not start Twitch restream worker:", error.message);
-    restreamWorker = null;
+  restreamWorker = worker;
+  worker.once("spawn", () => {
+    if (restreamWorker !== worker) return;
+    restreamWorkerState = "running";
+    if (restreamStableTimer) clearTimeout(restreamStableTimer);
+    restreamStableTimer = setTimeout(() => {
+      restreamRestartAttempts = 0;
+      restreamStableTimer = null;
+    }, 60000);
   });
-  restreamWorker.on("close", code => {
+  worker.on("error", error => {
+    console.error("Could not start Twitch restream worker:", error.message);
+    if (restreamWorker === worker) restreamWorker = null;
+    if (restreamStableTimer) {
+      clearTimeout(restreamStableTimer);
+      restreamStableTimer = null;
+    }
+    scheduleRestreamRestart(error.message);
+  });
+  worker.once("close", code => {
     console.error("Twitch restream worker stopped with code:", code);
-    restreamWorker = null;
+    if (restreamWorker === worker) restreamWorker = null;
+    if (restreamStableTimer) {
+      clearTimeout(restreamStableTimer);
+      restreamStableTimer = null;
+    }
+    if (restreamStopRequested) {
+      restreamWorkerState = "stopped";
+      return;
+    }
+    scheduleRestreamRestart("worker exited with code " + code);
   });
 }
 function restreamControlAuthorized(req) {
@@ -454,9 +501,10 @@ app.delete("/media/:name", (req, res) => {
 
 app.get("/restream/status", (_req, res) => {
   res.json({
-    status: restreamWorker ? "running" : "stopped",
+    status: restreamWorkerState,
     configured: restreamConfigured(),
     pid: restreamWorker?.pid || null,
+    restartAttempts: restreamRestartAttempts,
     destination: process.env.RESTREAM_RTMP_URL ? "Restream" : "direct"
   });
 });
@@ -468,7 +516,8 @@ app.post("/restream/start", (req, res) => {
   if (!restreamConfigured()) {
     return res.status(503).json({ error: "إعدادات وجهة RTMP غير مكتملة في Render." });
   }
-  if (restreamWorker) return res.json({ ok: true, status: "running" });
+  restreamStopRequested = false;
+  if (restreamWorker) return res.json({ ok: true, status: restreamWorkerState });
   startRestreamWorker();
   if (!restreamWorker) return res.status(500).json({ error: "تعذر تشغيل محرك إعادة البث. راجع سجلات Render." });
   return res.status(202).json({ ok: true, status: "starting" });
@@ -478,7 +527,16 @@ app.post("/restream/stop", (req, res) => {
   if (!restreamControlAuthorized(req)) {
     return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   }
-  if (!restreamWorker) return res.json({ ok: true, status: "stopped" });
+  restreamStopRequested = true;
+  if (restreamRestartTimer) {
+    clearTimeout(restreamRestartTimer);
+    restreamRestartTimer = null;
+  }
+  if (!restreamWorker) {
+    restreamWorkerState = "stopped";
+    return res.json({ ok: true, status: "stopped" });
+  }
+  restreamWorkerState = "stopping";
   restreamWorker.kill("SIGTERM");
   return res.status(202).json({ ok: true, status: "stopping" });
 });
