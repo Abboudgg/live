@@ -296,6 +296,53 @@ function startRestreamWorker() {
     restreamWorker = null;
   });
 }
+function restreamControlAuthorized(req) {
+  const expected = process.env.STREAM_CONTROL_TOKEN || "";
+  const supplied = req.get("x-stream-control-token") || "";
+  if (!expected || !supplied) return false;
+  const a = Buffer.from(expected);
+  const b = Buffer.from(supplied);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function restreamConfigured() {
+  return Boolean(
+    (process.env.RESTREAM_RTMP_URL?.trim() && process.env.RESTREAM_STREAM_KEY?.trim()) ||
+    process.env.KICK_RTMP_URL || process.env.TIKTOK_RTMP_URL
+  );
+}
+
+app.get("/restream/status", (_req, res) => {
+  res.json({
+    status: restreamWorker ? "running" : "stopped",
+    configured: restreamConfigured(),
+    pid: restreamWorker?.pid || null,
+    destination: process.env.RESTREAM_RTMP_URL ? "Restream" : "direct"
+  });
+});
+
+app.post("/restream/start", (req, res) => {
+  if (!restreamControlAuthorized(req)) {
+    return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  }
+  if (!restreamConfigured()) {
+    return res.status(503).json({ error: "إعدادات وجهة RTMP غير مكتملة في Render." });
+  }
+  if (restreamWorker) return res.json({ ok: true, status: "running" });
+  startRestreamWorker();
+  if (!restreamWorker) return res.status(500).json({ error: "تعذر تشغيل محرك إعادة البث. راجع سجلات Render." });
+  return res.status(202).json({ ok: true, status: "starting" });
+});
+
+app.post("/restream/stop", (req, res) => {
+  if (!restreamControlAuthorized(req)) {
+    return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  }
+  if (!restreamWorker) return res.json({ ok: true, status: "stopped" });
+  restreamWorker.kill("SIGTERM");
+  return res.status(202).json({ ok: true, status: "stopping" });
+}
+
 process.on("SIGTERM", () => restreamWorker?.kill("SIGTERM"));
 process.on("SIGINT", () => restreamWorker?.kill("SIGINT"));
 
