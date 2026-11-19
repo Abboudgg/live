@@ -105,12 +105,21 @@ async function runAttempt() {
 
   return await new Promise(resolve => {
     let settled = false;
+    let overlayCheck;
     const finish = result => {
       if (settled) return;
       settled = true;
+      if (overlayCheck) clearInterval(overlayCheck);
       stopChildren();
       resolve({ ...result, streamlinkError });
     };
+
+    overlayCheck = setInterval(() => {
+      if (manualOverlayFile && !settled) {
+        console.log("Switching from Twitch to manual video.");
+        finish({ source: "overlay", code: 0 });
+      }
+    }, 250);
 
     streamlink.on("error", error => {
       console.error("Could not start Streamlink:", error.message);
@@ -186,18 +195,27 @@ async function runStandbyUntilLive() {
     });
   });
 
+  let nextProbeAt = Date.now() + 15000;
   while (!stopping) {
+    if (manualOverlayFile) {
+      console.log("Manual video requested during waiting screen; switching to it.");
+      break;
+    }
     const next = await Promise.race([
-      sleep(15000).then(() => "probe"),
+      sleep(250).then(() => "check"),
       ended
     ]);
     if (next === "ended" || stopping) break;
+    if (manualOverlayFile) continue;
 
-    if (await checkTwitchAvailable()) {
-      console.log("Twitch is back. Switching from waiting screen to live stream.");
-      break;
+    if (Date.now() >= nextProbeAt) {
+      if (await checkTwitchAvailable()) {
+        console.log("Twitch is back. Switching from waiting screen to live stream.");
+        break;
+      }
+      console.log("Twitch is still unavailable; keeping the waiting screen live.");
+      nextProbeAt = Date.now() + 15000;
     }
-    console.log("Twitch is still unavailable; keeping the waiting screen live.");
   }
 
   if (!standby.killed) standby.kill("SIGTERM");
@@ -254,8 +272,18 @@ async function runManualOverlayUntilStopped() {
 
 async function main() {
   while (!stopping) {
+    if (manualOverlayFile) {
+      await runManualOverlayUntilStopped();
+      continue;
+    }
+
     const result = await runAttempt();
     if (stopping) break;
+
+    if (manualOverlayFile || result.source === "overlay") {
+      await runManualOverlayUntilStopped();
+      continue;
+    }
 
     const message = result.streamlinkError.toLowerCase();
     const twitchOffline =
