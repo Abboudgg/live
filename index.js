@@ -227,7 +227,7 @@ app.get("/platform-stats", (_req, res) => {
 
 async function refreshKickStats() {
   if (!kickUserAccessToken || !kickBroadcasterUserId) return;
-  const url = "https://api.kick.com/public/v1/livestreams?broadcaster_user_id=" + encodeURIComponent(kickBroadcasterUserId);
+  const url = "https://api.kick.com/public/v1/users/livestreams?user_id=" + encodeURIComponent(kickBroadcasterUserId);
   const response = await fetch(url, { headers: { Authorization: "Bearer " + kickUserAccessToken } });
   if (!response.ok) throw new Error("Kick livestream stats request failed: " + response.status);
   const payload = await response.json();
