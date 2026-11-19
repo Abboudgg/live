@@ -7,6 +7,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const chatClients = new Set();
 let kickStatus = "pending_setup";
+let kickBroadcasterUserId = null;
+const kickStats = { isLive: null, viewers: null, followers: null, updatedAt: null };
+const tiktokStats = { isLive: null, viewers: null, followers: null, updatedAt: null };
+let kickStatsTimer = null;
 let kickPublicKeyPromise = null;
 const seenKickEvents = new Map();
 
@@ -158,6 +162,10 @@ app.get("/kick/callback", async (req, res) => {
       return res.status(200).send("Kick authorization succeeded, but the channel ID could not be read. Check server logs.");
     }
 
+    kickBroadcasterUserId = broadcasterUserId;
+    refreshKickStats().catch(() => {});
+    if (!kickStatsTimer) kickStatsTimer = setInterval(() => refreshKickStats().catch(() => {}), 60000);
+
     const subscriptionResponse = await fetch("https://api.kick.com/public/v1/events/subscriptions", {
       method: "POST",
       headers: {
@@ -207,11 +215,27 @@ app.get("/config", (_req, res) => {
 });
 
 app.get("/chat-status", (_req, res) => {
+  res.json({ tiktok: tiktokStatus, kick: kickStatus });
+});
+
+app.get("/platform-stats", (_req, res) => {
   res.json({
-    tiktok: tiktokStatus,
-    kick: kickStatus
+    kick: { ...kickStats, status: kickStatus, followersAvailable: false },
+    tiktok: { ...tiktokStats, status: tiktokStatus, followersAvailable: Number.isFinite(tiktokStats.followers) }
   });
 });
+
+async function refreshKickStats() {
+  if (!kickUserAccessToken || !kickBroadcasterUserId) return;
+  const url = "https://api.kick.com/public/v1/livestreams?broadcaster_user_id=" + encodeURIComponent(kickBroadcasterUserId);
+  const response = await fetch(url, { headers: { Authorization: "Bearer " + kickUserAccessToken } });
+  if (!response.ok) throw new Error("Kick livestream stats request failed: " + response.status);
+  const payload = await response.json();
+  const stream = Array.isArray(payload.data) ? payload.data[0] : null;
+  kickStats.isLive = Boolean(stream);
+  kickStats.viewers = stream && Number.isFinite(Number(stream.viewer_count)) ? Number(stream.viewer_count) : 0;
+  kickStats.updatedAt = Date.now();
+}
 
 app.get("/events", (req, res) => {
   res.set({
@@ -241,6 +265,13 @@ async function startTikTokChat() {
       const { TikTokLiveConnection, WebcastEvent } = await import("tiktok-live-connector");
       connection = new TikTokLiveConnection(username, {});
 
+      connection.on(WebcastEvent.ROOM_USER, data => {
+        const count = data.total ?? data.viewerCount ?? data.totalUser;
+        if (count !== undefined && Number.isFinite(Number(count))) tiktokStats.viewers = Number(count);
+        tiktokStats.isLive = true;
+        tiktokStats.updatedAt = Date.now();
+      });
+
       connection.on(WebcastEvent.CHAT, data => {
         publishChat({
           platform: "tiktok",
@@ -252,10 +283,21 @@ async function startTikTokChat() {
 
       connection.on("disconnected", () => {
         tiktokStatus = "disconnected";
+        tiktokStats.isLive = false;
+        tiktokStats.viewers = null;
+        tiktokStats.updatedAt = Date.now();
       });
 
       await connection.connect();
       tiktokStatus = "connected";
+      tiktokStats.isLive = true;
+      try {
+        const roomInfo = await connection.fetchRoomInfo();
+        const owner = roomInfo?.owner || roomInfo?.data?.owner;
+        const followers = owner?.followInfo?.followerCount ?? owner?.follow_info?.follower_count;
+        if (followers !== undefined && Number.isFinite(Number(followers))) tiktokStats.followers = Number(followers);
+      } catch {}
+      tiktokStats.updatedAt = Date.now();
       console.log(`TikTok chat connected for @${username}`);
 
       await new Promise(resolve => {
@@ -264,6 +306,9 @@ async function startTikTokChat() {
       });
     } catch (error) {
       tiktokStatus = "offline_or_unavailable";
+      tiktokStats.isLive = false;
+      tiktokStats.viewers = null;
+      tiktokStats.updatedAt = Date.now();
       console.warn("TikTok chat connection unavailable:", error?.message || error);
     }
 
