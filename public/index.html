@@ -69,6 +69,16 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
    </div>
   </section>
 
+  <section class="panel">
+   <div class="panel-head"><div><div class="eyebrow">AUTOMATIC STANDBY VIDEO</div><h2 style="margin-top:4px">فيديو الانتظار التلقائي — عند انقطاع الإشارة</h2></div><span class="badge wait" id="standbyBadge">غير مضبوط</span></div>
+   <div class="control-body">
+    <p class="muted" style="margin:0 0 12px">ارفع فيديو مستقلًا عن المرفقات اليدوية. عند انقطاع إشارة Twitch سيعمل تلقائيًا بنظام LOOP، وعند عودة البث يرجع Twitch وحده.</p>
+    <input id="standbyFile" class="token" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
+    <div class="control-row"><button class="btn primary" id="uploadStandby" type="button">＋ رفع فيديو الانتظار</button><button class="btn" id="refreshStandby" type="button">↻ تحديث الحالة</button><button class="btn danger" id="deleteStandby" type="button">حذف فيديو الانتظار</button></div>
+    <div class="statusline"><span class="dot" id="standbyDot"></span><span id="standbyStatus">لم يتم رفع فيديو انتظار مستقل بعد؛ ستظهر الشاشة العنابية الاحتياطية عند انقطاع الإشارة.</span></div>
+    <p class="muted" style="margin:10px 0 0">هذا الفيديو لا يتأثر بزر تشغيل الفيديو اليدوي. الحد الأقصى 200 ميجابايت، والتخزين مؤقت على Render وقد يُحذف عند إعادة تشغيل الخدمة.</p>
+   </div>
+  </section>
   <section class="metrics">
    <div class="metric"><small>محرك إعادة البث</small><strong>FFmpeg</strong><div class="sub">نسخ مباشر للصوت والصورة</div></div>
    <div class="metric"><small>وجهة الإرسال</small><strong>Restream</strong><div class="sub">إلى الوجهات المرتبطة بحسابك</div></div>
@@ -136,6 +146,41 @@ async function deleteMedia(name){
 document.getElementById("uploadMedia").addEventListener("click",uploadMedia);
 document.getElementById("refreshMedia").addEventListener("click",refreshMedia);
 document.getElementById("stopMedia").addEventListener("click",stopMedia);
+
+const standbyFileInput=document.getElementById("standbyFile");
+function setStandbyStatus(message,configured=false){
+ document.getElementById("standbyStatus").textContent=message;
+ document.getElementById("standbyDot").className="dot "+(configured?"green":"");
+ document.getElementById("standbyBadge").textContent=configured?"جاهز تلقائيًا":"غير مضبوط";
+ document.getElementById("standbyBadge").className="badge "+(configured?"good":"wait");
+}
+async function refreshStandby(){
+ const token=streamTokenInput.value.trim();if(!token){setStandbyStatus("أدخل رمز التحكم أعلاه لقراءة حالة فيديو الانتظار.");return}
+ try{
+  const r=await fetch("/standby-video",{headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر قراءة الحالة");
+  if(d.configured)setStandbyStatus("فيديو الانتظار مرفوع وجاهز. الحجم: "+(d.size/1048576).toFixed(1)+" MB. سيعمل تلقائيًا عند فقد إشارة Twitch.",true);
+  else setStandbyStatus("لا يوجد فيديو انتظار مرفوع. ستظهر الشاشة العنابية الاحتياطية عند انقطاع الإشارة.",false);
+ }catch(e){setStandbyStatus(e.message,false)}
+}
+async function uploadStandby(){
+ const file=standbyFileInput.files?.[0];if(!file){setStandbyStatus("اختر فيديو الانتظار أولاً.");return}
+ if(file.size>200*1024*1024){setStandbyStatus("حجم الفيديو أكبر من 200 ميجابايت.");return}
+ const button=document.getElementById("uploadStandby");button.disabled=true;setStandbyStatus("جاري رفع فيديو الانتظار…");
+ try{
+  const r=await fetch("/standby-video/upload",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/octet-stream","x-file-name":encodeURIComponent(file.name)},body:await file.arrayBuffer()});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||"فشل رفع الفيديو");
+  standbyFileInput.value="";setStandbyStatus("تم حفظ فيديو الانتظار. سيعمل تلقائيًا عند انقطاع إشارة Twitch.",true);await refreshStandby();
+ }catch(e){setStandbyStatus(e.message,false)}finally{button.disabled=false}
+}
+async function deleteStandby(){
+ try{
+  const r=await fetch("/standby-video",{method:"DELETE",headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حذف الفيديو");
+  setStandbyStatus("تم حذف فيديو الانتظار. عند الانقطاع ستظهر الشاشة العنابية الاحتياطية.",false);
+ }catch(e){setStandbyStatus(e.message,false)}
+}
+document.getElementById("uploadStandby").addEventListener("click",uploadStandby);
+document.getElementById("refreshStandby").addEventListener("click",refreshStandby);
+document.getElementById("deleteStandby").addEventListener("click",deleteStandby);
 
 async function refreshRestreamStatus(){try{const d=await fetch("/restream/status").then(r=>r.json());const running=d.status==="running";document.getElementById("rtmpStatus").textContent="محرك RTMP: "+(running?"يعمل"+(d.pid?" · PID "+d.pid:""):"متوقف")+(d.configured?" · الإعدادات موجودة":" · إعدادات الوجهة ناقصة");document.getElementById("rtmpBadge").textContent=running?"يعمل":"متوقف";document.getElementById("rtmpBadge").className="badge "+(running?"good":"wait");document.getElementById("rtmpDot").className="dot "+(running?"green":"red")}catch{document.getElementById("rtmpStatus").textContent="تعذر قراءة حالة محرك RTMP"}}
 async function controlRestream(action){const token=streamTokenInput.value.trim();if(!token){streamStatus.textContent="أدخل رمز STREAM_CONTROL_TOKEN أولاً.";streamTokenInput.focus();return}const button=document.getElementById(action==="start"?"startRestream":"stopRestream");button.disabled=true;try{const r=await fetch("/restream/"+action,{method:"POST",headers:{"x-stream-control-token":token}});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر تنفيذ الطلب");document.getElementById("rtmpStatus").textContent="طلب "+(action==="start"?"تشغيل":"إيقاف")+" محرك RTMP تم إرساله";await refreshRestreamStatus()}catch(e){document.getElementById("rtmpStatus").textContent=e.message}finally{button.disabled=false}}
