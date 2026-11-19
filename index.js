@@ -17,7 +17,6 @@ let kickPublicKeyPromise = null;
 const seenKickEvents = new Map();
 
 app.disable("x-powered-by");
-app.use(express.json({ limit: "1mb" }));
 
 const mediaDirectory = path.join(os.tmpdir(), "live-control-media");
 fs.mkdirSync(mediaDirectory, { recursive: true });
@@ -396,7 +395,7 @@ app.post("/media/upload", express.raw({ type: "application/octet-stream", limit:
   return res.status(201).json({ ok: true, file: { name: filename, size: req.body.length } });
 });
 
-app.post("/media/play", (req, res) => {
+app.post("/media/play", express.json({ limit: "1mb" }), (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   if (!restreamWorker || !restreamWorker.connected) return res.status(503).json({ error: "محرك RTMP غير متصل. شغّل إعادة البث أولاً." });
   const name = String(req.body?.name || "");
