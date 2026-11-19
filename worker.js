@@ -176,13 +176,13 @@ async function main() {
       );
 
     if (twitchOffline) {
-      await runStandby();
-      if (!stopping) await sleep(2000);
-      continue;
+      console.log("Twitch stream is offline.");
+    } else {
+      console.warn("Stream connection ended unexpectedly.");
     }
 
-    console.warn("Stream connection ended unexpectedly. Retrying in 5 seconds...");
-    await sleep(5000);
+    await runStandby();
+    if (!stopping) await sleep(2000);
   }
 }
 
