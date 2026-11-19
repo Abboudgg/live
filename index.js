@@ -231,7 +231,8 @@ async function refreshKickStats() {
   const response = await fetch(url, { headers: { Authorization: "Bearer " + kickUserAccessToken } });
   if (!response.ok) throw new Error("Kick livestream stats request failed: " + response.status);
   const payload = await response.json();
-  const stream = Array.isArray(payload.data) ? payload.data[0] : null;
+  const streams = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+  const stream = streams[0] || null;
   kickStats.isLive = Boolean(stream);
   kickStats.viewers = stream && Number.isFinite(Number(stream.viewer_count)) ? Number(stream.viewer_count) : 0;
   kickStats.updatedAt = Date.now();
