@@ -42,15 +42,11 @@ module.exports = function registerTwitchHls(app) {
     }
   }
 
-  function hlsArgs(inputArgs) {
+  function hlsArgs(inputArgs, mapArgs, codecArgs) {
     const number = nextSegmentNumber();
     return [
       "-hide_banner", "-loglevel", "warning",
-      ...inputArgs,
-      "-map", "0:v:0", "-map", "1:a:0?",
-      "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-      "-pix_fmt", "yuv420p", "-g", "50", "-keyint_min", "50",
-      "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
+      ...inputArgs, ...mapArgs, ...codecArgs,
       "-f", "hls", "-hls_time", "4", "-hls_list_size", "8",
       "-hls_flags", "delete_segments+append_list+omit_endlist+discont_start",
       "-start_number", String(number),
@@ -90,6 +86,12 @@ module.exports = function registerTwitchHls(app) {
       "-re", "-f", "lavfi", "-i", "color=c=0x090910:s=1280x720:r=25",
       "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
       "-vf", filter
+    ], [
+      "-map", "0:v:0", "-map", "1:a:0"
+    ], [
+      "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+      "-pix_fmt", "yuv420p", "-g", "50", "-keyint_min", "50",
+      "-c:a", "aac", "-b:a", "96k", "-ar", "44100"
     ]), { stdio: ["ignore", "ignore", "inherit"] });
     const child = ffmpeg;
     child.once("error", error => {
@@ -140,12 +142,12 @@ module.exports = function registerTwitchHls(app) {
     });
     const liveStreamlink = streamlink;
     ffmpeg = spawn("ffmpeg", hlsArgs([
-      "-i", "pipe:0",
-      "-map", "0:v:0?", "-map", "0:a:0?",
+      "-i", "pipe:0"
+    ], [
+      "-map", "0:v:0?", "-map", "0:a:0?"
+    ], [
       "-c", "copy"
-    ]).filter((arg, index, arr) => !(arg === "-map" && arr[index + 1] === "1:a:0?")), {
-      stdio: ["pipe", "ignore", "inherit"]
-    });
+    ]), { stdio: ["pipe", "ignore", "inherit"] });
     const liveFfmpeg = ffmpeg;
     liveStreamlink.stdout.pipe(liveFfmpeg.stdin);
     liveFfmpeg.stdin.on("error", error => {
