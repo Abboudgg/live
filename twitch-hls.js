@@ -119,7 +119,7 @@ module.exports = function registerTwitchHls(app) {
       "drawtext=" + font + ":text=CASS:fontcolor=white:fontsize=58:x=(w-text_w)/2:y=22:borderw=3:bordercolor=black",
       "drawtext=" + font + ":textfile=" + wisdomTextPath + ":reload=1:fontcolor=white:fontsize=25:x=650:y=105:box=1:boxcolor=0x101018@0.70:boxborderw=18:text_shaping=1",
       "drawtext=" + font + ":text=حكم عبدالله ومتعب الذهبية:fontcolor=0xFFE066:fontsize=17:x=35:y=h-45:borderw=2:bordercolor=black:text_shaping=1",
-      "drawtext=" + font + ":text=إشارة منقطعة:fontcolor=white:fontsize=30:x=35:y=110:borderw=2:bordercolor=black:text_shaping=1",
+      "drawtext=" + font + ":text=إشارة منقطعة:fontcolor=white:fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2:borderw=2:bordercolor=black:text_shaping=1",
       "drawtext=" + font + ":text=البث مسكر حالياً:fontcolor=white:fontsize=30:x=35:y=165:borderw=2:bordercolor=black:text_shaping=1",
       "drawtext=" + font + ":text=نحاول إعادة الاتصال تلقائياً:fontcolor=white:fontsize=23:x=35:y=215:borderw=2:bordercolor=black:text_shaping=1"
     ];
