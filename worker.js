@@ -168,43 +168,57 @@ async function checkTwitchAvailable() {
   });
 }
 
-async function runStandbyUntilLive() {
-  console.log("Showing the maroon waiting screen until Twitch returns.");
+async function runStandbyUntilLive(statusMessage = "انقطعت إشارة البث\nنحاول إعادة الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة") {
+  console.log("Showing the broadcast status screen until Twitch returns.");
   const textFile = path.join(__dirname, "waiting.txt");
+  const writeStatus = message => {
+    try { fs.writeFileSync(textFile, message, "utf8"); }
+    catch (error) { console.error("Could not update broadcast status text:", error.message); }
+  };
+  writeStatus(statusMessage);
+
   const hasStandbyVideo = fs.existsSync(standbyVideoPath);
+  const statusFilter =
+    "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf" +
+    ":textfile=" + textFile +
+    ":reload=30:fontcolor=white:fontsize=52" +
+    ":x=(w-text_w)/2:y=(h-text_h)/2" +
+    ":box=1:boxcolor=0x5b1028@0.86:boxborderw=24:text_shaping=1";
+
   const args = ["-hide_banner", "-loglevel", "warning"];
   if (hasStandbyVideo) {
-    console.log("Playing automatic standby video in loop:", path.basename(standbyVideoPath));
+    console.log("Playing automatic standby video in loop with broadcast status text:", path.basename(standbyVideoPath));
     args.push(
       "-stream_loop", "-1", "-re", "-i", standbyVideoPath,
       "-map", "0:v:0", "-map", "0:a:0?",
-      "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p"
+      "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p," + statusFilter
     );
   } else {
-    console.log("No automatic standby video uploaded; using the maroon fallback screen.");
+    console.log("No automatic standby video uploaded; using the status screen.");
     args.push(
       "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
       "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-      "-vf", `drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf:textfile=${textFile}:fontcolor=white:fontsize=76:x=(w-text_w)/2:y=(h-text_h)/2:text_shaping=1`
+      "-vf", statusFilter
     );
   }
   args.push(
     "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-    "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
+    "-b:v", "1500k", "-maxrate", "1500k", "-bufsize", "3000k",
     "-g", "60", "-keyint_min", "60",
-    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+    "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
     "-f", "flv", destinations[0][1]
   );
+
   const standby = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
   activeChildren = [standby];
 
   const ended = new Promise(resolve => {
     standby.once("error", error => {
-      console.error("Waiting screen FFmpeg error:", error.message);
+      console.error("Broadcast status FFmpeg error:", error.message);
       resolve("ended");
     });
     standby.once("close", code => {
-      console.log("Waiting screen ended with code:", code);
+      console.log("Broadcast status screen ended with code:", code);
       resolve("ended");
     });
   });
@@ -212,7 +226,7 @@ async function runStandbyUntilLive() {
   let nextProbeAt = Date.now() + 15000;
   while (!stopping) {
     if (manualOverlayFile) {
-      console.log("Manual video requested during waiting screen; switching to it.");
+      console.log("Manual video requested during status screen; switching to it.");
       break;
     }
     const next = await Promise.race([
@@ -224,10 +238,11 @@ async function runStandbyUntilLive() {
 
     if (Date.now() >= nextProbeAt) {
       if (await checkTwitchAvailable()) {
-        console.log("Twitch is back. Switching from waiting screen to live stream.");
+        console.log("Twitch is back. Switching from status screen to live stream.");
         break;
       }
-      console.log("Twitch is still unavailable; keeping the waiting screen live.");
+      writeStatus("إشارة البث ما زالت منقطعة\nنواصل محاولة إعادة الاتصال تلقائيًا\nتابعونا، وإذا رجعت الإشارة سيعود البث");
+      console.log("Twitch is still unavailable; keeping the broadcast status screen live.");
       nextProbeAt = Date.now() + 15000;
     }
   }
@@ -250,35 +265,43 @@ async function runManualOverlayUntilStopped() {
       "-hide_banner", "-loglevel", "warning",
       "-stream_loop", "-1", "-re", "-i", filePath,
       "-map", "0:v:0", "-map", "0:a:0?",
-      "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
-      "-pix_fmt", "yuv420p", "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+      "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
+      "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+      "-pix_fmt", "yuv420p", "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
       "-g", "60", "-keyint_min", "60",
-      "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+      "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
+      "-max_muxing_queue_size", "1024",
       "-f", "flv", destinations[0][1]
     ];
     const overlay = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
     activeChildren = [overlay];
     await new Promise(resolve => {
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearInterval(check);
+        resolve();
+      };
       overlay.once("error", error => {
         console.error("Manual video FFmpeg error:", error.message);
-        resolve();
+        finish();
       });
       overlay.once("close", code => {
         console.log("Manual video FFmpeg ended with code:", code);
-        resolve();
+        finish();
       });
       const check = setInterval(() => {
         if (stopping || !manualOverlayFile || manualOverlayFile !== filePath) {
-          clearInterval(check);
           if (!overlay.killed) overlay.kill("SIGTERM");
+          finish();
         }
       }, 250);
-      overlay.once("close", () => clearInterval(check));
     });
     activeChildren = [];
     if (manualOverlayFile === filePath && !stopping) {
-      console.warn("Manual video encoder stopped unexpectedly; retrying in 3 seconds.");
-      await sleep(3000);
+      console.warn("Manual video encoder stopped unexpectedly; retrying in 5 seconds.");
+      await sleep(5000);
     }
   }
   console.log("Manual video mode ended; returning to Twitch live stream.");
@@ -309,13 +332,19 @@ async function main() {
         message.includes("no streams found")
       );
 
+    let statusMessage;
     if (twitchOffline) {
       console.log("Twitch stream is offline.");
+      statusMessage = "قناة البث غير مباشرة حاليًا\nننتظر عودتها ونحاول الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة";
+    } else if (result.source === "ffmpeg") {
+      console.warn("RTMP/FFmpeg connection ended unexpectedly.");
+      statusMessage = "انقطع الاتصال بخادم البث\nنحاول إعادة الاتصال تلقائيًا\nإذا استقر الاتصال سيعود البث مباشرة";
     } else {
-      console.warn("Stream connection ended unexpectedly.");
+      console.warn("Twitch stream connection ended unexpectedly.");
+      statusMessage = "انقطعت إشارة Twitch\nنحاول إعادة الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة";
     }
 
-    await runStandbyUntilLive();
+    await runStandbyUntilLive(statusMessage);
   }
 }
 
