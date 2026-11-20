@@ -219,6 +219,20 @@ module.exports = function registerTwitchHls(app) {
     status = "offline";
   }
 
+  app.get("/live/twitch/index.m3u8", (req, res, next) => {
+    const deadline = Date.now() + 12000;
+    const waitForPlaylist = () => {
+      if (fs.existsSync(playlistPath) && fs.statSync(playlistPath).size > 0) {
+        res.type("application/vnd.apple.mpegurl");
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        return res.sendFile(playlistPath);
+      }
+      if (Date.now() >= deadline) return res.status(503).type("text/plain").send("HLS stream is starting. Retry shortly.");
+      setTimeout(waitForPlaylist, 300);
+    };
+    waitForPlaylist();
+  });
+
   app.use("/live/twitch", (req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
