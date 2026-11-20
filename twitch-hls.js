@@ -33,7 +33,7 @@ module.exports = function registerTwitchHls(app) {
     try {
       const files = fs.readdirSync(outputDir);
       const numbers = files.map(name => {
-        const match = name.match(/^segment_(\\d+)\\.ts$/);
+        const match = name.match(/^segment_(\d+)\.ts$/);
         return match ? Number(match[1]) : -1;
       });
       return Math.max(0, ...numbers) + 1;
@@ -75,7 +75,7 @@ module.exports = function registerTwitchHls(app) {
   function startOfflineScreen(token) {
     if (!enabled || token !== generation) return;
     status = "offline";
-    fs.writeFileSync(statusTextPath, "إشارة منقطعة\\nالبث مسكر حالياً\\nنحاول إعادة الاتصال تلقائياً", "utf8");
+    fs.writeFileSync(statusTextPath, "إشارة منقطعة\nالبث مسكر حالياً\nنحاول إعادة الاتصال تلقائياً", "utf8");
     const filter =
       "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf" +
       ":textfile=" + statusTextPath +
