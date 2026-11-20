@@ -19,6 +19,7 @@ module.exports = function registerTwitchHls(app) {
   let lastError = null;
   let enabled = false;
   let retryTimer = null;
+  let wisdomTimer = null;
   let generation = 0;
 
   function authorized(req) {
@@ -57,6 +58,8 @@ module.exports = function registerTwitchHls(app) {
   }
 
   function stopChildren() {
+    if (wisdomTimer) clearInterval(wisdomTimer);
+    wisdomTimer = null;
     const oldStreamlink = streamlink;
     const oldFfmpeg = ffmpeg;
     streamlink = null;
@@ -77,7 +80,7 @@ module.exports = function registerTwitchHls(app) {
     if (!enabled || token !== generation) return;
     status = "offline";
     fs.writeFileSync(statusTextPath, "إشارة منقطعة\nالبث مسكر حالياً\nنحاول إعادة الاتصال تلقائياً", "utf8");
-    fs.writeFileSync(wisdomTextPath, [
+    const wisdomLines = [
       "1. السمكة إذا عطشت شربت موية.",
       "2. الباب إذا تسكّر ما عاد هو مفتوح.",
       "3. اللي يمشي يوصل، إلا إذا ضيّع الطريق.",
@@ -98,7 +101,14 @@ module.exports = function registerTwitchHls(app) {
       "18. إذا ركبت المصعد ونزلت فأنت ما طلعت.",
       "19. الجزرة تقوي النظر، خصوصاً إذا شفتها.",
       "20. إذا انكسر الصحن صار مكسور."
-    ].join("\n"), "utf8");
+    ];
+    let wisdomIndex = 0;
+    const showWisdom = () => {
+      fs.writeFileSync(wisdomTextPath, wisdomLines[wisdomIndex], "utf8");
+      wisdomIndex = (wisdomIndex + 1) % wisdomLines.length;
+    };
+    showWisdom();
+    wisdomTimer = setInterval(showWisdom, 15000);
     const font = "fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf";
     const filters = [
       "drawbox=x=0:y=0:w=320:h=ih:color=0x7137C8@0.75:t=fill",
@@ -107,8 +117,8 @@ module.exports = function registerTwitchHls(app) {
       "drawbox=x=960:y=0:w=320:h=ih:color=0xF0A202@0.72:t=fill",
       "drawbox=x=20:y=20:w=1240:h=680:color=0x101018@0.38:t=fill",
       "drawtext=" + font + ":text=CASS:fontcolor=white:fontsize=58:x=(w-text_w)/2:y=22:borderw=3:bordercolor=black",
-      "drawtext=" + font + ":textfile=" + wisdomTextPath + ":fontcolor=white:fontsize=22:line_spacing=5:x=650:y=105:box=1:boxcolor=0x101018@0.70:boxborderw=18:text_shaping=1",
-      "drawtext=" + font + ":text=حكم عبدالله ومتعب الذهبية:fontcolor=0xFFE066:fontsize=32:x=35:y=h-75:borderw=2:bordercolor=black:text_shaping=1",
+      "drawtext=" + font + ":textfile=" + wisdomTextPath + ":reload=1:fontcolor=white:fontsize=30:x=650:y=105:box=1:boxcolor=0x101018@0.70:boxborderw=18:text_shaping=1",
+      "drawtext=" + font + ":text=حكم عبدالله ومتعب الذهبية:fontcolor=0xFFE066:fontsize=20:x=35:y=h-55:borderw=2:bordercolor=black:text_shaping=1",
       "drawtext=" + font + ":text=إشارة منقطعة:fontcolor=white:fontsize=38:x=35:y=110:borderw=2:bordercolor=black:text_shaping=1",
       "drawtext=" + font + ":text=البث مسكر حالياً:fontcolor=white:fontsize=30:x=35:y=165:borderw=2:bordercolor=black:text_shaping=1",
       "drawtext=" + font + ":text=نحاول إعادة الاتصال تلقائياً:fontcolor=white:fontsize=23:x=35:y=215:borderw=2:bordercolor=black:text_shaping=1"
