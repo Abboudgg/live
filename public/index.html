@@ -72,10 +72,10 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
   <section class="panel">
    <div class="panel-head"><div><div class="eyebrow">AUTOMATIC STANDBY VIDEO</div><h2 style="margin-top:4px">فيديو الانتظار التلقائي — عند انقطاع الإشارة</h2></div><span class="badge wait" id="standbyBadge">غير مضبوط</span></div>
    <div class="control-body">
-    <p class="muted" style="margin:0 0 12px">ارفع فيديو مستقلًا عن المرفقات اليدوية. عند انقطاع إشارة Twitch سيعمل تلقائيًا بنظام LOOP، وعند عودة البث يرجع Twitch وحده.</p>
+    <p class="muted" style="margin:0 0 12px">ارفع فيديو مستقلًا عن المرفقات اليدوية. عند انقطاع إشارة Twitch سيعمل تلقائيًا بنظام LOOP مع رسالة توضح سبب الانقطاع ومحاولة استعادة البث.</p>
     <input id="standbyFile" class="token" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
     <div class="control-row"><button class="btn primary" id="uploadStandby" type="button">＋ رفع فيديو الانتظار</button><button class="btn" id="refreshStandby" type="button">↻ تحديث الحالة</button><button class="btn danger" id="deleteStandby" type="button">حذف فيديو الانتظار</button></div>
-    <div class="statusline"><span class="dot" id="standbyDot"></span><span id="standbyStatus">لم يتم رفع فيديو انتظار مستقل بعد؛ ستظهر الشاشة العنابية الاحتياطية عند انقطاع الإشارة.</span></div>
+    <div class="statusline"><span class="dot" id="standbyDot"></span><span id="standbyStatus">لم يتم رفع فيديو انتظار مستقل بعد؛ ستظهر رسالة توضح سبب انقطاع البث ومحاولة إرجاعه تلقائيًا.</span></div>
     <p class="muted" style="margin:10px 0 0">هذا الفيديو لا يتأثر بزر تشغيل الفيديو اليدوي. الحد الأقصى 200 ميجابايت، والتخزين مؤقت على Render وقد يُحذف عند إعادة تشغيل الخدمة.</p>
    </div>
   </section>
@@ -159,7 +159,7 @@ async function refreshStandby(){
  try{
   const r=await fetch("/standby-video",{headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر قراءة الحالة");
   if(d.configured)setStandbyStatus("فيديو الانتظار مرفوع وجاهز. الحجم: "+(d.size/1048576).toFixed(1)+" MB. سيعمل تلقائيًا عند فقد إشارة Twitch.",true);
-  else setStandbyStatus("لا يوجد فيديو انتظار مرفوع. ستظهر الشاشة العنابية الاحتياطية عند انقطاع الإشارة.",false);
+  else setStandbyStatus("لا يوجد فيديو انتظار مرفوع. ستظهر رسالة توضح حالة البث ومحاولة إعادة الاتصال تلقائيًا.",false);
  }catch(e){setStandbyStatus(e.message,false)}
 }
 async function uploadStandby(){
@@ -175,7 +175,7 @@ async function uploadStandby(){
 async function deleteStandby(){
  try{
   const r=await fetch("/standby-video",{method:"DELETE",headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حذف الفيديو");
-  setStandbyStatus("تم حذف فيديو الانتظار. عند الانقطاع ستظهر الشاشة العنابية الاحتياطية.",false);
+  setStandbyStatus("تم حذف فيديو الانتظار. عند الانقطاع ستظهر رسالة توضح حالة البث ومحاولة إعادته.",false);
  }catch(e){setStandbyStatus(e.message,false)}
 }
 document.getElementById("uploadStandby").addEventListener("click",uploadStandby);
