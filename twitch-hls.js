@@ -10,6 +10,7 @@ module.exports = function registerTwitchHls(app) {
   const outputDir = path.join(os.tmpdir(), "live-twitch-hls");
   const playlistPath = path.join(outputDir, "index.m3u8");
   const statusTextPath = path.join(outputDir, "offline-status.txt");
+  const wisdomTextPath = path.join(outputDir, "offline-wisdom.txt");
   fs.mkdirSync(outputDir, { recursive: true });
 
   let streamlink = null;
@@ -76,12 +77,43 @@ module.exports = function registerTwitchHls(app) {
     if (!enabled || token !== generation) return;
     status = "offline";
     fs.writeFileSync(statusTextPath, "إشارة منقطعة\nالبث مسكر حالياً\nنحاول إعادة الاتصال تلقائياً", "utf8");
-    const filter =
-      "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf" +
-      ":textfile=" + statusTextPath +
-      ":reload=1:fontcolor=white:fontsize=54" +
-      ":x=(w-text_w)/2:y=(h-text_h)/2" +
-      ":box=1:boxcolor=0x171321@0.9:boxborderw=30:text_shaping=1";
+    fs.writeFileSync(wisdomTextPath, [
+      "1. السمكة إذا عطشت شربت موية.",
+      "2. الباب إذا تسكّر ما عاد هو مفتوح.",
+      "3. اللي يمشي يوصل، إلا إذا ضيّع الطريق.",
+      "4. الشمس تطلع بالنهار عشان الليل ما يزعل.",
+      "5. الموية تبلل إذا لمستها.",
+      "6. المروحة تلف لأنها ما تعرف تمشي.",
+      "7. اللي يطالع الساعة يعرف الوقت.",
+      "8. لا تحط الجوال بالثلاجة إلا لمكالمة باردة.",
+      "9. إذا طاح القلم لا تدور عليه فوق السقف.",
+      "10. الزرافة طويلة، وهذه معلومة طويلة.",
+      "11. لا تثق بالكرسي، ممكن يقعدك.",
+      "12. إذا نسيت جوالك اتصل عليه من جوالك.",
+      "13. البطريق ناسي كلمة سر الطيران.",
+      "14. لا تسبح في الصحراء، ما فيه بحر.",
+      "15. إذا دق الجرس لا ترد عليه برسالة.",
+      "16. القمر عنده دوام ليلي.",
+      "17. لا تأكل الشاحن حتى لو كان سريع.",
+      "18. إذا ركبت المصعد ونزلت فأنت ما طلعت.",
+      "19. الجزرة تقوي النظر، خصوصاً إذا شفتها.",
+      "20. إذا انكسر الصحن صار مكسور."
+    ].join("\n"), "utf8");
+    const font = "fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf";
+    const filters = [
+      "drawbox=x=0:y=0:w=320:h=ih:color=0x7137C8@0.75:t=fill",
+      "drawbox=x=320:y=0:w=320:h=ih:color=0x087E8B@0.72:t=fill",
+      "drawbox=x=640:y=0:w=320:h=ih:color=0xD1495B@0.72:t=fill",
+      "drawbox=x=960:y=0:w=320:h=ih:color=0xF0A202@0.72:t=fill",
+      "drawbox=x=20:y=20:w=1240:h=680:color=0x101018@0.38:t=fill",
+      "drawtext=" + font + ":text=CASS:fontcolor=white:fontsize=58:x=(w-text_w)/2:y=22:borderw=3:bordercolor=black",
+      "drawtext=" + font + ":textfile=" + wisdomTextPath + ":fontcolor=white:fontsize=22:line_spacing=5:x=650:y=105:box=1:boxcolor=0x101018@0.70:boxborderw=18:text_shaping=1",
+      "drawtext=" + font + ":text=حكم عبدالله ومتعب الذهبية:fontcolor=0xFFE066:fontsize=32:x=35:y=h-75:borderw=2:bordercolor=black:text_shaping=1",
+      "drawtext=" + font + ":text=إشارة منقطعة:fontcolor=white:fontsize=38:x=35:y=110:borderw=2:bordercolor=black:text_shaping=1",
+      "drawtext=" + font + ":text=البث مسكر حالياً:fontcolor=white:fontsize=30:x=35:y=165:borderw=2:bordercolor=black:text_shaping=1",
+      "drawtext=" + font + ":text=نحاول إعادة الاتصال تلقائياً:fontcolor=white:fontsize=23:x=35:y=215:borderw=2:bordercolor=black:text_shaping=1"
+    ];
+    const filter = filters.join(",");
     ffmpeg = spawn("ffmpeg", hlsArgs([
       "-re", "-f", "lavfi", "-i", "color=c=0x090910:s=1280x720:r=25",
       "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
