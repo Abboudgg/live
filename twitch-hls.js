@@ -117,23 +117,25 @@ module.exports = function registerTwitchHls(app) {
       "drawbox=x=960:y=0:w=320:h=ih:color=0x7137C8@0.76:t=fill",
       "drawbox=x=20:y=20:w=1240:h=680:color=0x101018@0.38:t=fill",
       "drawtext=" + font + ":text=CASS:fontcolor=white:fontsize=58:x=(w-text_w)/2:y=22:borderw=3:bordercolor=black",
-      "drawtext=" + font + ":textfile=" + wisdomTextPath + ":reload=1:fontcolor=white:fontsize=22:x=650:y=105:box=1:boxcolor=0x101018@0.70:boxborderw=18:text_shaping=1",
-      "drawtext=" + font + ":text=حكم عبدالله ومتعب الذهبية:fontcolor=0xFFE066:fontsize=13:x=35:y=h-45:borderw=2:bordercolor=black:text_shaping=1",
-      "drawtext=" + font + ":text=إشارة منقطعة:fontcolor=white:fontsize=38:x=35:y=110:borderw=2:bordercolor=black:text_shaping=1",
+      "drawtext=" + font + ":textfile=" + wisdomTextPath + ":reload=1:fontcolor=white:fontsize=25:x=650:y=105:box=1:boxcolor=0x101018@0.70:boxborderw=18:text_shaping=1",
+      "drawtext=" + font + ":text=حكم عبدالله ومتعب الذهبية:fontcolor=0xFFE066:fontsize=17:x=35:y=h-45:borderw=2:bordercolor=black:text_shaping=1",
+      "drawtext=" + font + ":text=إشارة منقطعة:fontcolor=white:fontsize=30:x=35:y=110:borderw=2:bordercolor=black:text_shaping=1",
       "drawtext=" + font + ":text=البث مسكر حالياً:fontcolor=white:fontsize=30:x=35:y=165:borderw=2:bordercolor=black:text_shaping=1",
       "drawtext=" + font + ":text=نحاول إعادة الاتصال تلقائياً:fontcolor=white:fontsize=23:x=35:y=215:borderw=2:bordercolor=black:text_shaping=1"
     ];
     const filter = filters.join(",");
     ffmpeg = spawn("ffmpeg", hlsArgs([
       "-re", "-f", "lavfi", "-i", "color=c=0x090910:s=1280x720:r=25",
-      "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+      "-re", "-f", "lavfi", "-i", "anoisesrc=color=white:amplitude=0.22:sample_rate=44100",
+      "-re", "-f", "lavfi", "-i", "anoisesrc=color=brown:amplitude=0.8:sample_rate=44100",
       "-vf", filter
     ], [
-      "-map", "0:v:0", "-map", "1:a:0"
+      "-filter_complex", "[1:a]highpass=f=700,lowpass=f=9000,volume=0.22[rain];[2:a]lowpass=f=160,volume='0.05+0.55*(0.5+0.5*sin(2*PI*t/21))'[thunder];[rain][thunder]amix=inputs=2:duration=longest:normalize=0[aout]",
+      "-map", "0:v:0", "-map", "[aout]"
     ], [
       "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
       "-pix_fmt", "yuv420p", "-g", "50", "-keyint_min", "50",
-      "-c:a", "aac", "-b:a", "96k", "-ar", "44100"
+      "-c:a", "aac", "-b:a", "128k", "-ar", "44100"
     ]), { stdio: ["ignore", "ignore", "inherit"] });
     const child = ffmpeg;
     child.once("error", error => {
