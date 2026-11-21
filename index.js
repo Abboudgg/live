@@ -615,6 +615,7 @@ app.post("/restream/stop", (req, res) => {
     return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   }
   restreamStopRequested = true;
+  manualStandbyEnabled = false;
   if (restreamRestartTimer) {
     clearTimeout(restreamRestartTimer);
     restreamRestartTimer = null;
