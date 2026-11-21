@@ -60,8 +60,11 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
   <section class="panel">
    <div class="panel-head"><div><div class="eyebrow">VIDEO ATTACHMENTS</div><h2 style="margin-top:4px">مرفقات الفيديو — تشغيل يدوي LOOP</h2></div><span class="badge" id="mediaBadge">جاهز</span></div>
    <div class="control-body">
-    <p class="muted" style="margin:0 0 12px">ارفع فيديو من جهازك، ثم شغّله على البث بشكل متكرر. عند الإيقاف يرجع بث Twitch تلقائيًا.</p>
-    <input id="mediaFile" class="token" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
+    <p class="muted" style="margin:0 0 12px">ضع رابط MP4 مباشر. زر شاشة الانتظار يعمل كتبديل: الضغطة الأولى تعرض الفيديو بدل Twitch، والثانية تعيد Twitch. التشغيل بنظام LOOP.</p>
+    <input id="mediaUrlInput" class="token" type="url" inputmode="url" placeholder="https://example.com/video.mp4">
+    <div class="control-row"><button class="btn primary" id="saveMediaUrl" type="button">حفظ رابط MP4</button><button class="btn success" id="toggleManualStandby" type="button">▶ تشغيل شاشة الانتظار</button></div>
+    <div class="statusline"><span class="dot" id="manualStandbyDot"></span><span id="manualStandbyStatus">أدخل رابط MP4 مباشرًا ثم احفظه.</span></div>
+    <input id="mediaFile" class="token" type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
     <div class="control-row"><button class="btn primary" id="uploadMedia" type="button">＋ رفع المرفق</button><button class="btn" id="refreshMedia" type="button">↻ تحديث القائمة</button><button class="btn danger" id="stopMedia" type="button">■ إيقاف الفيديو والرجوع للبث</button></div>
     <div id="mediaList" style="display:grid;gap:8px;margin-top:13px"></div>
     <div class="statusline"><span class="dot" id="mediaDot"></span><span id="mediaStatus">أدخل رمز التحكم أعلاه لإدارة المرفقات.</span></div>
@@ -72,8 +75,10 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
   <section class="panel">
    <div class="panel-head"><div><div class="eyebrow">AUTOMATIC STANDBY VIDEO</div><h2 style="margin-top:4px">فيديو الانتظار التلقائي — عند انقطاع الإشارة</h2></div><span class="badge wait" id="standbyBadge">غير مضبوط</span></div>
    <div class="control-body">
-    <p class="muted" style="margin:0 0 12px">ارفع فيديو مستقلًا عن المرفقات اليدوية. عند انقطاع إشارة Twitch سيعمل تلقائيًا بنظام LOOP مع رسالة توضح سبب الانقطاع ومحاولة استعادة البث.</p>
-    <input id="standbyFile" class="token" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
+    <p class="muted" style="margin:0 0 12px">أدخل رابط MP4 مستقلًا. عند انقطاع إشارة Twitch يعمل تلقائيًا بنظام LOOP، وعند عودة الإشارة يرجع البث تلقائيًا.</p>
+    <input id="standbyUrlInput" class="token" type="url" inputmode="url" placeholder="https://example.com/standby.mp4">
+    <div class="control-row"><button class="btn primary" id="saveStandbyUrl" type="button">حفظ رابط فيديو الانتظار</button></div>
+    <input id="standbyFile" class="token" type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
     <div class="control-row"><button class="btn primary" id="uploadStandby" type="button">＋ رفع فيديو الانتظار</button><button class="btn" id="refreshStandby" type="button">↻ تحديث الحالة</button><button class="btn danger" id="deleteStandby" type="button">حذف فيديو الانتظار</button></div>
     <div class="statusline"><span class="dot" id="standbyDot"></span><span id="standbyStatus">لم يتم رفع فيديو انتظار مستقل بعد؛ ستظهر رسالة توضح سبب انقطاع البث ومحاولة إرجاعه تلقائيًا.</span></div>
     <p class="muted" style="margin:10px 0 0">هذا الفيديو لا يتأثر بزر تشغيل الفيديو اليدوي. الحد الأقصى 200 ميجابايت، والتخزين مؤقت على Render وقد يُحذف عند إعادة تشغيل الخدمة.</p>
@@ -105,6 +110,44 @@ const mediaFileInput=document.getElementById("mediaFile");
 const mediaStatus=document.getElementById("mediaStatus");
 const mediaList=document.getElementById("mediaList");
 function mediaAuthHeaders(){return {"x-stream-control-token":streamTokenInput.value.trim()}}
+function setManualStandbyUi(enabled,message){
+ const button=document.getElementById("toggleManualStandby");
+ button.textContent=enabled?"■ إيقاف شاشة الانتظار والعودة للبث":"▶ تشغيل شاشة الانتظار";
+ button.className="btn "+(enabled?"danger":"success");
+ document.getElementById("manualStandbyStatus").textContent=message|| (enabled?"شاشة الانتظار اليدوية تعمل بنظام LOOP.":"شاشة الانتظار اليدوية متوقفة.");
+ document.getElementById("manualStandbyDot").className="dot "+(enabled?"green":"");
+}
+async function refreshManualStandby(){
+ const token=streamTokenInput.value.trim();if(!token)return;
+ try{
+  const [u,s]=await Promise.all([
+   fetch("/media/url",{headers:mediaAuthHeaders()}).then(r=>r.json()),
+   fetch("/standby/manual",{headers:mediaAuthHeaders()}).then(r=>r.json())
+  ]);
+  if(u.url)document.getElementById("mediaUrlInput").value=u.url;
+  setManualStandbyUi(Boolean(s.enabled));
+ }catch(e){setManualStandbyUi(false,"تعذر قراءة حالة شاشة الانتظار.");}
+}
+async function saveMediaUrl(){
+ const url=document.getElementById("mediaUrlInput").value.trim();
+ try{
+  const r=await fetch("/media/url",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/json"},body:JSON.stringify({url})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حفظ الرابط");
+  setManualStandbyUi(false,"تم حفظ رابط MP4. اضغط تشغيل شاشة الانتظار لعرضه.");
+ }catch(e){setManualStandbyUi(false,e.message);}
+}
+async function toggleManualStandby(){
+ const currently=document.getElementById("toggleManualStandby").textContent.includes("إيقاف");
+ const url=document.getElementById("mediaUrlInput").value.trim();
+ try{
+  const r=await fetch("/standby/manual",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/json"},body:JSON.stringify({enabled:!currently,url})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر تغيير شاشة الانتظار");
+  setManualStandbyUi(Boolean(d.enabled),d.enabled?"شاشة الانتظار اليدوية تعمل بنظام LOOP. اضغط مرة ثانية للعودة إلى Twitch.":"تم إيقاف شاشة الانتظار والعودة إلى Twitch.");
+ }catch(e){setManualStandbyUi(currently,e.message);}
+}
+document.getElementById("saveMediaUrl").addEventListener("click",saveMediaUrl);
+document.getElementById("toggleManualStandby").addEventListener("click",toggleManualStandby);
+
 function setMediaStatus(message,good=false){mediaStatus.textContent=message;document.getElementById("mediaDot").className="dot "+(good?"green":"");document.getElementById("mediaBadge").textContent=good?"جاهز":"المرفقات"}
 async function refreshMedia(){
  const token=streamTokenInput.value.trim();if(!token){setMediaStatus("أدخل رمز التحكم أولاً.");return}
@@ -156,11 +199,21 @@ function setStandbyStatus(message,configured=false){
  document.getElementById("standbyBadge").textContent=configured?"جاهز تلقائيًا":"غير مضبوط";
  document.getElementById("standbyBadge").className="badge "+(configured?"good":"wait");
 }
+
+async function saveStandbyUrl(){
+ const url=document.getElementById("standbyUrlInput").value.trim();
+ try{
+  const r=await fetch("/standby-video/url",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/json"},body:JSON.stringify({url})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حفظ الرابط");
+  setStandbyStatus("تم حفظ رابط MP4. سيعمل تلقائيًا عند انقطاع إشارة Twitch.",true);
+ }catch(e){setStandbyStatus(e.message,false);}
+}
+document.getElementById("saveStandbyUrl").addEventListener("click",saveStandbyUrl);
 async function refreshStandby(){
  const token=streamTokenInput.value.trim();if(!token){setStandbyStatus("أدخل رمز التحكم أعلاه لقراءة حالة فيديو الانتظار.");return}
  try{
   const r=await fetch("/standby-video",{headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر قراءة الحالة");
-  if(d.configured)setStandbyStatus("فيديو الانتظار مرفوع وجاهز. الحجم: "+(d.size/1048576).toFixed(1)+" MB. سيعمل تلقائيًا عند فقد إشارة Twitch.",true);
+  if(d.configured){if(d.url)document.getElementById("standbyUrlInput").value=d.url;setStandbyStatus(d.url?"رابط MP4 محفوظ وجاهز. سيعمل تلقائيًا عند فقد إشارة Twitch.":"فيديو الانتظار مرفوع وجاهز. سيعمل تلقائيًا عند فقد إشارة Twitch.",true);}
   else setStandbyStatus("لا يوجد فيديو انتظار مرفوع. ستظهر رسالة توضح حالة البث ومحاولة إعادة الاتصال تلقائيًا.",false);
  }catch(e){setStandbyStatus(e.message,false)}
 }
@@ -207,6 +260,6 @@ async function refreshPlatformStats(){
 
 fetch("/config").then(r=>r.json()).then(c=>{const twitch=c.twitchChannel||"r119_abdlull",kick=c.kickUsername||"cass-sa",tiktok=c.tiktokUsername||"cass_ksa_";const parent=location.hostname;document.getElementById("twitch").src="https://player.twitch.tv/?channel="+encodeURIComponent(twitch)+"&parent="+encodeURIComponent(parent)+"&autoplay=false";document.getElementById("twitchLink").href="https://www.twitch.tv/"+twitch;document.getElementById("kickLink").href="https://kick.com/"+kick;document.getElementById("tiktokLink").href="https://www.tiktok.com/@"+tiktok;document.getElementById("channelLabel").textContent="القناة: "+twitch;document.getElementById("serviceStatus").innerHTML='<span class="dot green"></span> الخدمة تستجيب';refreshChatStatus()}).catch(()=>{document.getElementById("serviceStatus").innerHTML='<span class="dot red"></span> تعذر الاتصال'});
 const events=new EventSource("/events");events.addEventListener("chat",e=>{try{addMessage(JSON.parse(e.data))}catch{}});events.onerror=()=>{document.getElementById("serviceStatus").innerHTML='<span class="dot"></span> إعادة الاتصال'};
-refreshStreamStatus();refreshRestreamStatus();refreshPlatformStats();setInterval(refreshStreamStatus,5000);setInterval(refreshRestreamStatus,5000);setInterval(refreshChatStatus,10000);setInterval(refreshPlatformStats,30000);
+refreshStreamStatus();refreshRestreamStatus();refreshPlatformStats();refreshManualStandby();setInterval(refreshStreamStatus,5000);setInterval(refreshRestreamStatus,5000);setInterval(refreshChatStatus,10000);setInterval(refreshPlatformStats,30000);
 </script>
 </body></html>
