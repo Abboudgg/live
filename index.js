@@ -21,6 +21,8 @@ app.disable("x-powered-by");
 const mediaDirectory = path.join(os.tmpdir(), "live-control-media");
 fs.mkdirSync(mediaDirectory, { recursive: true });
 const standbyVideoPath = path.join(mediaDirectory, "automatic-standby-video");
+let standbyVideoUrl = "";
+let manualStandbyUrl = "";
 const allowedVideoExtensions = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
 const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
 
@@ -414,6 +416,13 @@ function restreamConfigured() {
 }
 
 
+function validMp4Url(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    return url.protocol === "https:" && /\\.mp4(?:$|[?#])/i.test(url.href);
+  } catch { return false; }
+}
+
 function mediaFiles() {
   return fs.readdirSync(mediaDirectory)
     .filter(name => allowedVideoExtensions.has(path.extname(name).toLowerCase()))
@@ -452,8 +461,43 @@ app.get("/media/list", (req, res) => {
   return res.json({ files: mediaFiles(), active: activeMediaFile });
 });
 
+app.get("/standby-video/url", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  return res.json({ configured: Boolean(standbyVideoUrl), url: standbyVideoUrl });
+});
+
+app.post("/standby-video/url", express.json({ limit: "8kb" }), (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  const url = String(req.body?.url || "").trim();
+  if (!validMp4Url(url)) return res.status(400).json({ error: "أدخل رابط MP4 مباشر يبدأ بـ HTTPS وينتهي بـ .mp4." });
+  standbyVideoUrl = url;
+  if (restreamWorker?.connected) restreamWorker.send({ type: "standby-url", url });
+  return res.json({ ok: true, configured: true, url });
+});
+
+app.get("/standby/manual", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  return res.json({ enabled: Boolean(manualStandbyUrl), url: manualStandbyUrl });
+});
+
+app.post("/standby/manual", express.json({ limit: "8kb" }), (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  const enabled = Boolean(req.body?.enabled);
+  if (enabled) {
+    const url = String(req.body?.url || manualStandbyUrl || "").trim();
+    if (!validMp4Url(url)) return res.status(400).json({ error: "أدخل رابط MP4 مباشر وصحيح أولاً." });
+    manualStandbyUrl = url;
+  } else {
+    manualStandbyUrl = "";
+  }
+  if (!restreamWorker?.connected) return res.status(503).json({ error: "محرك RTMP غير متصل. شغّل البث أولاً." });
+  restreamWorker.send(enabled ? { type: "overlay-start", filePath: manualStandbyUrl } : { type: "overlay-stop" });
+  return res.json({ ok: true, enabled, status: enabled ? "manual_standby" : "returning_to_live" });
+});
+
 app.get("/standby-video", (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  if (standbyVideoUrl) return res.json({ configured: true, url: standbyVideoUrl, source: "url" });
   if (!fs.existsSync(standbyVideoPath)) return res.json({ configured: false });
   const stat = fs.statSync(standbyVideoPath);
   return res.json({ configured: true, size: stat.size, updatedAt: stat.mtimeMs });
@@ -467,12 +511,15 @@ app.post("/standby-video/upload", express.raw({ type: "application/octet-stream"
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "ملف الفيديو فارغ." });
   if (req.body.length > MAX_MEDIA_BYTES) return res.status(413).json({ error: "الحد الأقصى لحجم الفيديو 200 ميجابايت." });
   fs.writeFileSync(standbyVideoPath, req.body);
+  standbyVideoUrl = "";
   return res.status(201).json({ ok: true, configured: true, size: req.body.length });
 });
 
 app.delete("/standby-video", (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   if (fs.existsSync(standbyVideoPath)) fs.unlinkSync(standbyVideoPath);
+  standbyVideoUrl = "";
+  if (restreamWorker?.connected) restreamWorker.send({ type: "standby-url", url: "" });
   return res.json({ ok: true, configured: false });
 });
 
