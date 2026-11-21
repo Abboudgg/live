@@ -499,6 +499,7 @@ app.get("/standby/manual", (req, res) => {
 app.post("/standby/manual", express.json({ limit: "8kb" }), (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   const enabled = Boolean(req.body?.enabled);
+  if (!restreamWorker?.connected) return res.status(503).json({ error: "محرك RTMP غير متصل. شغّل البث أولاً." });
   if (enabled) {
     const url = String(req.body?.url || manualStandbyUrl || "").trim();
     if (!validMp4Url(url)) return res.status(400).json({ error: "أدخل رابط MP4 مباشر وصحيح أولاً." });
@@ -507,7 +508,6 @@ app.post("/standby/manual", express.json({ limit: "8kb" }), (req, res) => {
     manualStandbyEnabled = false;
   }
   if (enabled) manualStandbyEnabled = true;
-  if (!restreamWorker?.connected) return res.status(503).json({ error: "محرك RTMP غير متصل. شغّل البث أولاً." });
   restreamWorker.send(enabled ? { type: "overlay-start", filePath: manualStandbyUrl } : { type: "overlay-stop" });
   return res.json({ ok: true, enabled, status: enabled ? "manual_standby" : "returning_to_live" });
 });
