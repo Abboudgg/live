@@ -101,7 +101,8 @@ module.exports = function registerTwitchHls(app) {
       "18. إذا ركبت المصعد ونزلت فأنت ما طلعت.",
       "19. الجزرة تقوي النظر، خصوصاً إذا شفتها.",
       "20. إذا انكسر الصحن صار مكسور."
-    ];
+" اذا رحت حمام . انت تحتاجه ضروي "
+        ];
     let wisdomIndex = 0;
     const showWisdom = () => {
       fs.writeFileSync(wisdomTextPath, wisdomLines[wisdomIndex], "utf8");
