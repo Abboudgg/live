@@ -5,6 +5,7 @@ const path = require("path");
 const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
 const standbyVideoPath = path.join(require("os").tmpdir(), "live-control-media", "automatic-standby-video");
+let standbyVideoUrl = "";
 const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
 const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
@@ -43,6 +44,9 @@ process.on("message", message => {
     manualOverlayFile = message.filePath;
     overlayRevision++;
     console.log("Manual video overlay requested:", path.basename(message.filePath));
+  } else if (message?.type === "standby-url" && typeof message.url === "string") {
+    standbyVideoUrl = message.url;
+    console.log("Automatic standby MP4 URL updated.");
   } else if (message?.type === "overlay-stop") {
     manualOverlayFile = null;
     overlayRevision++;
@@ -177,7 +181,8 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
   };
   writeStatus(statusMessage);
 
-  const hasStandbyVideo = fs.existsSync(standbyVideoPath);
+  const hasStandbyVideo = Boolean(standbyVideoUrl) || fs.existsSync(standbyVideoPath);
+  const standbyInput = standbyVideoUrl || standbyVideoPath;
   const statusFilter =
     "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf" +
     ":textfile=" + textFile +
@@ -187,9 +192,9 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
   const args = ["-hide_banner", "-loglevel", "warning"];
   if (hasStandbyVideo) {
-    console.log("Playing automatic standby video in loop with broadcast status text:", path.basename(standbyVideoPath));
+    console.log("Playing automatic standby video in loop:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
     args.push(
-      "-stream_loop", "-1", "-re", "-i", standbyVideoPath,
+      "-stream_loop", "-1", "-re", "-i", standbyInput,
       "-map", "0:v:0", "-map", "0:a:0?",
       "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p," + statusFilter
     );
@@ -255,12 +260,12 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 async function runManualOverlayUntilStopped() {
   while (!stopping && manualOverlayFile) {
     const filePath = manualOverlayFile;
-    if (!fs.existsSync(filePath)) {
-      console.error("Manual video file disappeared:", filePath);
+    if (!/^https:\/\//i.test(filePath) && !fs.existsSync(filePath)) {
+      console.error("Manual video source is unavailable:", filePath);
       manualOverlayFile = null;
       break;
     }
-    console.log("Playing manual video in loop:", path.basename(filePath));
+    console.log("Playing manual video in loop:", /^https:\/\//i.test(filePath) ? "MP4 URL" : path.basename(filePath));
     const args = [
       "-hide_banner", "-loglevel", "warning",
       "-stream_loop", "-1", "-re", "-i", filePath,
