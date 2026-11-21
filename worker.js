@@ -11,17 +11,12 @@ const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
 
 if (restreamServer && restreamKey) {
-  const server = restreamServer.replace(/\/+$/, "");
-  const key = restreamKey.replace(/^\/+/, "");
+  const server = restreamServer.replace(/\\/+$/, "");
+  const key = restreamKey.replace(/^\\/+/, "");
   destinations.push(["Restream", server + "/" + key]);
 } else {
-  if (restreamServer || restreamKey) {
-    console.warn("Restream is only partially configured. Set both RESTREAM_RTMP_URL and RESTREAM_STREAM_KEY.");
-  }
-  destinations.push(
-    ["Kick", process.env.KICK_RTMP_URL],
-    ["TikTok", process.env.TIKTOK_RTMP_URL]
-  );
+  console.error("Restream is required. Set RESTREAM_RTMP_URL and RESTREAM_STREAM_KEY.");
+  process.exit(1);
 }
 
 const configuredDestinations = destinations.filter(([, url]) => Boolean(url));
@@ -29,7 +24,7 @@ destinations.length = 0;
 destinations.push(...configuredDestinations);
 
 if (destinations.length === 0) {
-  console.error("Set RESTREAM_RTMP_URL and RESTREAM_STREAM_KEY, or configure a direct RTMP destination.");
+  console.error("Restream is not configured correctly.");
   process.exit(1);
 }
 
