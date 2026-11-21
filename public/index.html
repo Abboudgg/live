@@ -68,7 +68,7 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
     <div class="control-row"><button class="btn primary" id="uploadMedia" style="display:none" type="button">＋ رفع المرفق</button><button class="btn" id="refreshMedia" style="display:none" type="button">↻ تحديث القائمة</button><button class="btn danger" id="stopMedia" style="display:none" type="button">■ إيقاف الفيديو والرجوع للبث</button></div>
     <div id="mediaList" style="display:none"></div>
     <div class="statusline"><span class="dot" id="mediaDot"></span><span id="mediaStatus">أدخل رمز التحكم أعلاه لإدارة المرفقات.</span></div>
-    <p class="muted" style="margin:10px 0 0">الحد الأقصى 200 ميجابايت للفيديو. المرفقات محفوظة مؤقتًا وقد تختفي عند إعادة تشغيل Render أو إعادة النشر.</p>
+    <p class="muted" style="margin:10px 0 0">استخدم رابط MP4 مباشرًا عبر HTTPS؛ لا يلزم رفع ملف إلى Render.</p>
    </div>
   </section>
 
@@ -81,7 +81,7 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
     <input id="standbyFile" class="token" type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
     <div class="control-row"><button class="btn primary" id="uploadStandby" style="display:none" type="button">＋ رفع فيديو الانتظار</button><button class="btn" id="refreshStandby" style="display:none" type="button">↻ تحديث الحالة</button><button class="btn danger" id="deleteStandby" type="button">حذف فيديو الانتظار</button></div>
     <div class="statusline"><span class="dot" id="standbyDot"></span><span id="standbyStatus">لم يتم رفع فيديو انتظار مستقل بعد؛ ستظهر رسالة توضح سبب انقطاع البث ومحاولة إرجاعه تلقائيًا.</span></div>
-    <p class="muted" style="margin:10px 0 0">هذا الفيديو لا يتأثر بزر تشغيل الفيديو اليدوي. الحد الأقصى 200 ميجابايت، والتخزين مؤقت على Render وقد يُحذف عند إعادة تشغيل الخدمة.</p>
+    <p class="muted" style="margin:10px 0 0">هذا الرابط مستقل عن شاشة الانتظار اليدوية. يجب أن يكون رابط MP4 مباشرًا ومتاحًا للعامة عبر HTTPS.</p>
    </div>
   </section>
   <section class="metrics">
@@ -146,6 +146,7 @@ async function toggleManualStandby(){
  }catch(e){setManualStandbyUi(currently,e.message);}
 }
 document.getElementById("saveMediaUrl").addEventListener("click",saveMediaUrl);
+streamTokenInput.addEventListener("change",()=>{refreshManualStandby();refreshStandby()});
 document.getElementById("toggleManualStandby").addEventListener("click",toggleManualStandby);
 
 function setMediaStatus(message,good=false){mediaStatus.textContent=message;document.getElementById("mediaDot").className="dot "+(good?"green":"");document.getElementById("mediaBadge").textContent=good?"جاهز":"المرفقات"}
