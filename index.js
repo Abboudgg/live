@@ -422,7 +422,7 @@ function restreamConfigured() {
 function validMp4Url(value) {
   try {
     const url = new URL(String(value || "").trim());
-    return url.protocol === "https:" && /\\.mp4(?:$|[?#])/i.test(url.href);
+    return url.protocol === "https:" && /\.mp4(?:$|[?#])/i.test(url.href);
   } catch { return false; }
 }
 
