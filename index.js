@@ -23,6 +23,7 @@ fs.mkdirSync(mediaDirectory, { recursive: true });
 const standbyVideoPath = path.join(mediaDirectory, "automatic-standby-video");
 let standbyVideoUrl = "";
 let manualStandbyUrl = "";
+let manualStandbyEnabled = false;
 const allowedVideoExtensions = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
 const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
 
@@ -490,7 +491,7 @@ app.post("/standby-video/url", express.json({ limit: "8kb" }), (req, res) => {
 
 app.get("/standby/manual", (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
-  return res.json({ enabled: Boolean(manualStandbyUrl), url: manualStandbyUrl });
+  return res.json({ enabled: manualStandbyEnabled, url: manualStandbyUrl });
 });
 
 app.post("/standby/manual", express.json({ limit: "8kb" }), (req, res) => {
@@ -501,8 +502,9 @@ app.post("/standby/manual", express.json({ limit: "8kb" }), (req, res) => {
     if (!validMp4Url(url)) return res.status(400).json({ error: "أدخل رابط MP4 مباشر وصحيح أولاً." });
     manualStandbyUrl = url;
   } else {
-    manualStandbyUrl = "";
+    manualStandbyEnabled = false;
   }
+  if (enabled) manualStandbyEnabled = true;
   if (!restreamWorker?.connected) return res.status(503).json({ error: "محرك RTMP غير متصل. شغّل البث أولاً." });
   restreamWorker.send(enabled ? { type: "overlay-start", filePath: manualStandbyUrl } : { type: "overlay-stop" });
   return res.json({ ok: true, enabled, status: enabled ? "manual_standby" : "returning_to_live" });
