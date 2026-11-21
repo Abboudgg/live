@@ -371,6 +371,8 @@ function startRestreamWorker() {
   worker.once("spawn", () => {
     if (restreamWorker !== worker) return;
     restreamWorkerState = "running";
+    if (standbyVideoUrl) worker.send({ type: "standby-url", url: standbyVideoUrl });
+    if (manualStandbyEnabled && manualStandbyUrl) worker.send({ type: "overlay-start", filePath: manualStandbyUrl });
     if (restreamStableTimer) clearTimeout(restreamStableTimer);
     restreamStableTimer = setTimeout(() => {
       restreamRestartAttempts = 0;
