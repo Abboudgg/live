@@ -116,9 +116,11 @@ async function refreshMedia(){
    const row=document.createElement("div");row.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#0c111a;border:1px solid #252d3b;border-radius:10px;padding:10px";
    const info=document.createElement("span");info.style.cssText="font-size:12px;overflow-wrap:anywhere";info.textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB"+(d.active===file.name?" · يعمل LOOP":"");
    const actions=document.createElement("div");actions.className="control-row";
-   const play=document.createElement("button");play.className="btn success";play.textContent="▶ تشغيل LOOP";play.addEventListener("click",()=>playMedia(file.name));
+   const play=document.createElement("button");play.className="btn success";play.textContent="▶ تشغيل على RTMP";play.addEventListener("click",()=>playMedia(file.name));
+   const mp4=document.createElement("button");mp4.className="btn";mp4.textContent="نسخ رابط MP4";mp4.addEventListener("click",async()=>{const url=location.origin+"/media/file/"+encodeURIComponent(file.name);try{await navigator.clipboard.writeText(url);setMediaStatus("تم نسخ رابط MP4 المباشر.",true)}catch{setMediaStatus("تعذر النسخ؛ افتح رابط المشغل لنسخه يدويًا.")}});
+   const loop=document.createElement("button");loop.className="btn";loop.textContent="فتح مشغل LOOP";loop.addEventListener("click",()=>window.open("/media/loop/"+encodeURIComponent(file.name),"_blank","noopener"));
    const del=document.createElement("button");del.className="btn danger";del.textContent="حذف";del.addEventListener("click",()=>deleteMedia(file.name));
-   actions.append(play,del);row.append(info,actions);mediaList.append(row);
+   actions.append(play,mp4,loop,del);row.append(info,actions);mediaList.append(row);
   }
   setMediaStatus(d.active?"الفيديو يعمل حاليًا بنظام LOOP.":"قائمة المرفقات محدثة.",true);
  }catch(e){setMediaStatus(e.message)}
