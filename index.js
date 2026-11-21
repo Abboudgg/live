@@ -424,6 +424,29 @@ function mediaFiles() {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+// Public, unguessable UUID media URLs for external MP4 players.
+app.get("/media/file/:name", (req, res) => {
+  const name = String(req.params.name || "");
+  if (!name || path.basename(name) !== name || !/^[0-9a-f-]{36}\.(mp4|mov|m4v|webm|mkv)$/i.test(name)) {
+    return res.status(400).send("Invalid media name");
+  }
+  const filePath = path.join(mediaDirectory, name);
+  if (!fs.existsSync(filePath)) return res.status(404).send("Media not found");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  return res.sendFile(filePath);
+});
+
+app.get("/media/loop/:name", (req, res) => {
+  const name = String(req.params.name || "");
+  if (!name || path.basename(name) !== name || !/^[0-9a-f-]{36}\.(mp4|mov|m4v|webm|mkv)$/i.test(name)) {
+    return res.status(400).send("Invalid media name");
+  }
+  const filePath = path.join(mediaDirectory, name);
+  if (!fs.existsSync(filePath)) return res.status(404).send("Media not found");
+  const source = "/media/file/" + encodeURIComponent(name);
+  res.type("html").send(`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LIVE LOOP</title><style>body{margin:0;background:#080b12;color:#fff;font:16px system-ui;display:grid;place-items:center;min-height:100vh}main{width:min(100%,1100px);padding:16px;box-sizing:border-box}video{width:100%;max-height:82vh;background:#000;border-radius:14px}p{text-align:center;color:#aeb8c8}</style><main><video controls autoplay loop playsinline src="${source}"></video><p>LIVE · تشغيل متكرر LOOP</p></main></html>`);
+});
+
 app.get("/media/list", (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   return res.json({ files: mediaFiles(), active: activeMediaFile });
