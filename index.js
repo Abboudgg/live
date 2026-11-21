@@ -461,6 +461,19 @@ app.get("/media/list", (req, res) => {
   return res.json({ files: mediaFiles(), active: activeMediaFile });
 });
 
+app.get("/media/url", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  return res.json({ configured: Boolean(manualStandbyUrl), url: manualStandbyUrl, active: Boolean(manualStandbyUrl && restreamWorker?.connected) });
+});
+
+app.post("/media/url", express.json({ limit: "8kb" }), (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  const url = String(req.body?.url || "").trim();
+  if (!validMp4Url(url)) return res.status(400).json({ error: "أدخل رابط MP4 مباشر يبدأ بـ HTTPS وينتهي بـ .mp4." });
+  manualStandbyUrl = url;
+  return res.json({ ok: true, configured: true, url });
+});
+
 app.get("/standby-video/url", (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
   return res.json({ configured: Boolean(standbyVideoUrl), url: standbyVideoUrl });
