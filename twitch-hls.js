@@ -131,7 +131,7 @@ module.exports = function registerTwitchHls(app) {
       "-re", "-f", "lavfi", "-i", "anoisesrc=color=brown:amplitude=0.8:sample_rate=44100",
       "-vf", filter
     ], [
-      "-filter_complex", "[1:a]highpass=f=700,lowpass=f=9000,volume=0.22[rain];[2:a]lowpass=f=160,volume='0.05+0.55*(0.5+0.5*sin(2*PI*t/21))'[thunder];[rain][thunder]amix=inputs=2:duration=longest:normalize=0[aout]",
+      "-filter_complex", "[1:a]highpass=f=700,lowpass=f=9000,volume=0.22[rain];[2:a]lowpass=f=160,volume='0.05+0.55*(0.5+0.5*sin(2*PI*t/21))':eval=frame[thunder];[rain][thunder]amix=inputs=2:duration=longest:normalize=0[aout]",
       "-map", "0:v:0", "-map", "[aout]"
     ], [
       "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
