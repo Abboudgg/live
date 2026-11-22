@@ -192,7 +192,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
     const hasStandbyVideo = Boolean(standbyVideoUrl) || fs.existsSync(standbyVideoPath);
     const standbyInput = standbyVideoUrl || standbyVideoPath;
-    const args = ["-hide_banner", "-loglevel", "warning"];
+    const args = ["-hide_banner", "-loglevel", "info"];
     if (hasStandbyVideo) {
       console.log("Playing automatic standby video in loop:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
       args.push(
@@ -273,7 +273,7 @@ async function runManualOverlayUntilStopped() {
     }
     console.log("Playing manual video in loop:", /^https:\/\//i.test(filePath) ? "MP4 URL" : path.basename(filePath));
     const args = [
-      "-hide_banner", "-loglevel", "warning",
+      "-hide_banner", "-loglevel", "info",
       "-stream_loop", "-1", "-re", "-i", filePath,
       "-map", "0:v:0", "-map", "0:a:0?",
       "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
