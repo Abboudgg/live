@@ -176,8 +176,6 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
   };
   writeStatus(statusMessage);
 
-  const hasStandbyVideo = Boolean(standbyVideoUrl) || fs.existsSync(standbyVideoPath);
-  const standbyInput = standbyVideoUrl || standbyVideoPath;
   const statusFilter =
     "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf" +
     ":textfile=" + textFile +
@@ -185,73 +183,86 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     ":x=(w-text_w)/2:y=(h-text_h)/2" +
     ":box=1:boxcolor=0x5b1028@0.86:boxborderw=24:text_shaping=1";
 
-  const args = ["-hide_banner", "-loglevel", "warning"];
-  if (hasStandbyVideo) {
-    console.log("Playing automatic standby video in loop:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
-    args.push(
-      "-stream_loop", "-1", "-re", "-i", standbyInput,
-      "-map", "0:v:0", "-map", "0:a:0?",
-      "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p," + statusFilter
-    );
-  } else {
-    console.log("No automatic standby video uploaded; using the status screen.");
-    args.push(
-      "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
-      "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-      "-vf", statusFilter
-    );
-  }
-  args.push(
-    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-    "-b:v", "1500k", "-maxrate", "1500k", "-bufsize", "3000k",
-    "-g", "60", "-keyint_min", "60",
-    "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
-    "-f", "flv", destinations[0][1]
-  );
-
-  const standby = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
-  activeChildren = [standby];
-
-  const ended = new Promise(resolve => {
-    standby.once("error", error => {
-      console.error("Broadcast status FFmpeg error:", error.message);
-      resolve("ended");
-    });
-    standby.once("close", code => {
-      console.log("Broadcast status screen ended with code:", code);
-      resolve("ended");
-    });
-  });
-
-  let nextProbeAt = Date.now() + 15000;
+  let nextProbeAt = 0;
   while (!stopping) {
     if (manualOverlayFile) {
       console.log("Manual video requested during status screen; switching to it.");
       break;
     }
-    const next = await Promise.race([
-      sleep(250).then(() => "check"),
-      ended
-    ]);
-    if (next === "ended" || stopping) break;
-    if (manualOverlayFile) continue;
 
-    if (Date.now() >= nextProbeAt) {
-      if (await checkTwitchAvailable()) {
-        console.log("Twitch is back. Switching from status screen to live stream.");
+    const hasStandbyVideo = Boolean(standbyVideoUrl) || fs.existsSync(standbyVideoPath);
+    const standbyInput = standbyVideoUrl || standbyVideoPath;
+    const args = ["-hide_banner", "-loglevel", "warning"];
+    if (hasStandbyVideo) {
+      console.log("Playing automatic standby video in loop:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
+      args.push(
+        "-stream_loop", "-1", "-re", "-i", standbyInput,
+        "-map", "0:v:0", "-map", "0:a:0?",
+        "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p," + statusFilter
+      );
+    } else {
+      console.log("No automatic standby video uploaded; using the status screen.");
+      args.push(
+        "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
+        "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+        "-vf", statusFilter
+      );
+    }
+    args.push(
+      "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+      "-b:v", "1500k", "-maxrate", "1500k", "-bufsize", "3000k",
+      "-g", "60", "-keyint_min", "60",
+      "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
+      "-f", "flv", destinations[0][1]
+    );
+
+    console.log("Starting/restarting standby RTMP output.");
+    const standby = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
+    activeChildren = [standby];
+
+    const ended = new Promise(resolve => {
+      standby.once("error", error => {
+        console.error("Broadcast status FFmpeg error:", error.message);
+        resolve("ended");
+      });
+      standby.once("close", code => {
+        console.warn("Broadcast status screen FFmpeg ended with code:", code);
+        resolve("ended");
+      });
+    });
+
+    let switchToLive = false;
+    while (!stopping && !switchToLive) {
+      if (manualOverlayFile) break;
+      const next = await Promise.race([
+        sleep(250).then(() => "check"),
+        ended
+      ]);
+      if (next === "ended") {
+        console.warn("Standby RTMP output disconnected; it will be restarted.");
         break;
       }
-      writeStatus("إشارة البث ما زالت منقطعة\nنواصل محاولة إعادة الاتصال تلقائيًا\nتابعونا، وإذا رجعت الإشارة سيعود البث");
-      console.log("Twitch is still unavailable; keeping the broadcast status screen live.");
-      nextProbeAt = Date.now() + 15000;
+      if (Date.now() >= nextProbeAt) {
+        if (await checkTwitchAvailable()) {
+          console.log("Twitch is back. Switching from status screen to live stream.");
+          switchToLive = true;
+          break;
+        }
+        writeStatus("إشارة البث ما زالت منقطعة\nنواصل محاولة إعادة الاتصال تلقائيًا\nتابعونا، وإذا رجعت الإشارة سيعود البث");
+        console.log("Twitch is still unavailable; keeping the broadcast status screen live.");
+        nextProbeAt = Date.now() + 15000;
+      }
     }
+
+    if (!standby.killed) standby.kill("SIGTERM");
+    await Promise.race([ended, sleep(3000)]);
+    if (activeChildren[0] === standby) activeChildren = [];
+
+    if (switchToLive || manualOverlayFile || stopping) break;
+    console.warn("Retrying standby RTMP output in 5 seconds.");
+    await sleep(5000);
   }
-
-  if (!standby.killed) standby.kill("SIGTERM");
-  await Promise.race([ended, sleep(3000)]);
-  activeChildren = [];
 }
-
 async function runManualOverlayUntilStopped() {
   while (!stopping && manualOverlayFile) {
     const filePath = manualOverlayFile;
