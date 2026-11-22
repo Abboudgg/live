@@ -11,8 +11,8 @@ const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
 
 if (restreamServer && restreamKey) {
-  const server = restreamServer.replace(/\\/+$/, "");
-  const key = restreamKey.replace(/^\\/+/, "");
+  const server = restreamServer.replace(/\/+$/, "");
+  const key = restreamKey.replace(/^\/+/, "");
   destinations.push(["Restream", server + "/" + key]);
 } else {
   console.error("Restream is required. Set RESTREAM_RTMP_URL and RESTREAM_STREAM_KEY.");
