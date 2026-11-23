@@ -1,8 +1,8 @@
 {
-  "name": "live-multi-chat",
+  "name": "live-control-room",
   "version": "1.1.0",
   "private": true,
-  "description": "Unified livestream chat dashboard for Twitch, Kick and TikTok.",
+  "description": "Livestream control room for Twitch, Kick and TikTok.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
