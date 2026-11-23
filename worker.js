@@ -283,7 +283,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     await Promise.race([ended, sleep(3000)]);
     if (activeChildren[0] === standby) activeChildren = [];
 
-    if (switchToLive || manualOverlayFile || stopping) break;
+    if (switchToLive || manualOverlayFile || publishTestRequested || stopping) break;
     console.warn("ستتم إعادة محاولة إرسال شاشة الانتظار بعد 5 ثوانٍ.");
     await sleep(5000);
   }
