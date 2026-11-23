@@ -30,11 +30,16 @@ if (destinations.length === 0) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 let stopping = false;
+let publishTestRequested = false;
 let activeChildren = [];
 let manualOverlayFile = null;
 let overlayRevision = 0;
 
 process.on("message", message => {
+  if (message?.type === "publish-test") {
+    publishTestRequested = true;
+    console.log("وصل طلب اختبار النشر المؤقت.");
+  }
   if (message?.type === "overlay-start" && typeof message.filePath === "string") {
     manualOverlayFile = message.filePath;
     overlayRevision++;
@@ -130,6 +135,10 @@ async function runAttempt() {
         console.log("التحويل من Twitch إلى الفيديو اليدوي.");
         finish({ source: "overlay", code: 0 });
       }
+      if (publishTestRequested && !settled) {
+        console.log("إيقاف المصدر الحالي لبدء اختبار النشر المؤقت.");
+        finish({ source: "publish-test", code: 0 });
+      }
     }, 250);
 
     streamlink.on("error", error => {
@@ -196,6 +205,11 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
   let nextProbeAt = 0;
   while (!stopping) {
+    if (publishTestRequested) {
+      publishTestRequested = false;
+      await runPublishTest();
+      continue;
+    }
     if (manualOverlayFile) {
       console.log("تم طلب الفيديو اليدوي أثناء شاشة الحالة؛ جارٍ التحويل إليه.");
       break;
@@ -244,7 +258,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
     let switchToLive = false;
     while (!stopping && !switchToLive) {
-      if (manualOverlayFile) break;
+      if (manualOverlayFile || publishTestRequested) break;
       const next = await Promise.race([
         sleep(250).then(() => "check"),
         ended
@@ -368,6 +382,29 @@ async function main() {
 
     await runStandbyUntilLive(statusMessage);
   }
+}
+
+async function runPublishTest() {
+  console.log("بدء اختبار نشر ثابت إلى Restream لمدة 15 ثانية.");
+  const args = [
+    "-hide_banner", "-loglevel", "debug",
+    "-re", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30",
+    "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+    "-t", "15",
+    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+    "-pix_fmt", "yuv420p", "-b:v", "1200k", "-maxrate", "1200k", "-bufsize", "2400k",
+    "-g", "60", "-keyint_min", "60",
+    "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
+    "-f", "flv", destinations[0][1]
+  ];
+  const test = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
+  activeChildren = [test];
+  await new Promise(resolve => {
+    test.once("error", error => { console.error("تعذّر تشغيل اختبار النشر:", error.message); resolve(); });
+    test.once("close", code => { console.log("انتهى اختبار النشر برمز:", code); resolve(); });
+  });
+  if (activeChildren[0] === test) activeChildren = [];
+  console.log("انتهى الاختبار؛ ستتم العودة إلى مصدر Twitch تلقائيًا.");
 }
 
 function shutdown() {
