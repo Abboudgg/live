@@ -370,6 +370,11 @@ async function runManualOverlayUntilStopped() {
 
 async function main() {
   while (!stopping) {
+    if (manualStandbyMode) {
+      await runStandbyUntilLive("شاشة الانتظار\nاضغط ابدأ البث للعودة إلى Twitch", true);
+      if (resumeLiveRequested) resumeLiveRequested = false;
+      continue;
+    }
     if (manualOverlayFile) {
       await runManualOverlayUntilStopped();
       continue;
