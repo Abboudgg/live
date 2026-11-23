@@ -289,7 +289,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
   }
 }
 async function runManualOverlayUntilStopped() {
-  while (!stopping && manualOverlayFile) {
+  while (!stopping && manualOverlayFile && !publishTestRequested) {
     const filePath = manualOverlayFile;
     if (!/^https:\/\//i.test(filePath) && !fs.existsSync(filePath)) {
       console.error("مصدر الفيديو اليدوي غير متاح:", filePath);
@@ -328,7 +328,7 @@ async function runManualOverlayUntilStopped() {
         finish();
       });
       const check = setInterval(() => {
-        if (stopping || !manualOverlayFile || manualOverlayFile !== filePath) {
+        if (stopping || publishTestRequested || !manualOverlayFile || manualOverlayFile !== filePath) {
           if (!overlay.killed) overlay.kill("SIGTERM");
           finish();
         }
