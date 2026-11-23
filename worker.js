@@ -15,7 +15,7 @@ if (restreamServer && restreamKey) {
   const key = restreamKey.replace(/^\/+/, "");
   destinations.push(["Restream", server + "/" + key]);
 } else {
-  console.error("Restream is required. Set RESTREAM_RTMP_URL and RESTREAM_STREAM_KEY.");
+  console.error("خدمة Restream مطلوبة. تحقّق من إعداد عنوان الخادم ومفتاح البث في Render.");
   process.exit(1);
 }
 
@@ -24,7 +24,7 @@ destinations.length = 0;
 destinations.push(...configuredDestinations);
 
 if (destinations.length === 0) {
-  console.error("Restream is not configured correctly.");
+  console.error("إعدادات Restream غير مكتملة أو غير صحيحة.");
   process.exit(1);
 }
 
@@ -38,14 +38,14 @@ process.on("message", message => {
   if (message?.type === "overlay-start" && typeof message.filePath === "string") {
     manualOverlayFile = message.filePath;
     overlayRevision++;
-    console.log("Manual video overlay requested:", path.basename(message.filePath));
+    console.log("تم طلب تشغيل الفيديو اليدوي:", path.basename(message.filePath));
   } else if (message?.type === "standby-url" && typeof message.url === "string") {
     standbyVideoUrl = message.url;
-    console.log("Automatic standby MP4 URL updated.");
+    console.log("تم تحديث رابط فيديو الانتظار التلقائي.");
   } else if (message?.type === "overlay-stop") {
     manualOverlayFile = null;
     overlayRevision++;
-    console.log("Manual video overlay stop requested.");
+    console.log("تم طلب إيقاف الفيديو اليدوي.");
   }
 });
 
@@ -70,8 +70,8 @@ function spawnFfmpeg(args, stdio) {
 }
 
 async function runAttempt() {
-  console.log("Starting Twitch restream:", twitchUrl);
-  console.log("Configured destinations:", destinations.map(([name]) => name).join(", "));
+  console.log("بدء سحب البث من Twitch:", twitchUrl);
+  console.log("وجهات البث المفعّلة:", destinations.map(([name]) => name).join(", "));
 
   const streamlink = spawn("streamlink", ["--stdout", twitchUrl, "best"], {
     stdio: ["ignore", "pipe", "pipe"]
@@ -111,7 +111,7 @@ async function runAttempt() {
   });
 
   ffmpeg.stdin.on("error", error => {
-    if (error.code !== "EPIPE") console.error("FFmpeg input pipe error:", error.message);
+    if (error.code !== "EPIPE") console.error("خطأ في تمرير البيانات إلى FFmpeg:", error.message);
   });
 
   return await new Promise(resolve => {
@@ -127,28 +127,28 @@ async function runAttempt() {
 
     overlayCheck = setInterval(() => {
       if (manualOverlayFile && !settled) {
-        console.log("Switching from Twitch to manual video.");
+        console.log("التحويل من Twitch إلى الفيديو اليدوي.");
         finish({ source: "overlay", code: 0 });
       }
     }, 250);
 
     streamlink.on("error", error => {
-      console.error("Could not start Streamlink:", error.message);
+      console.error("تعذّر تشغيل Streamlink:", error.message);
       finish({ source: "streamlink", code: 1 });
     });
 
     ffmpeg.on("error", error => {
-      console.error("Could not start FFmpeg:", error.message);
+      console.error("تعذّر تشغيل FFmpeg:", error.message);
       finish({ source: "ffmpeg", code: 1 });
     });
 
     streamlink.on("close", code => {
-      console.log("Streamlink ended with code:", code);
+      console.log("انتهى Streamlink برمز:", code);
       finish({ source: "streamlink", code });
     });
 
     ffmpeg.on("close", code => {
-      console.error("FFmpeg ended with code:", code);
+      console.error("انتهى FFmpeg برمز:", code);
       finish({ source: "ffmpeg", code });
     });
   });
@@ -179,11 +179,11 @@ async function checkTwitchAvailable() {
 }
 
 async function runStandbyUntilLive(statusMessage = "انقطعت إشارة البث\nنحاول إعادة الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة") {
-  console.log("Showing the broadcast status screen until Twitch returns.");
+  console.log("عرض شاشة حالة البث حتى عودة Twitch.");
   const textFile = path.join(__dirname, "waiting.txt");
   const writeStatus = message => {
     try { fs.writeFileSync(textFile, message, "utf8"); }
-    catch (error) { console.error("Could not update broadcast status text:", error.message); }
+    catch (error) { console.error("تعذّر تحديث نص حالة البث:", error.message); }
   };
   writeStatus(statusMessage);
 
@@ -197,7 +197,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
   let nextProbeAt = 0;
   while (!stopping) {
     if (manualOverlayFile) {
-      console.log("Manual video requested during status screen; switching to it.");
+      console.log("تم طلب الفيديو اليدوي أثناء شاشة الحالة؛ جارٍ التحويل إليه.");
       break;
     }
 
@@ -205,14 +205,14 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     const standbyInput = standbyVideoUrl || standbyVideoPath;
     const args = ["-hide_banner", "-loglevel", "debug"];
     if (hasStandbyVideo) {
-      console.log("Playing automatic standby video in loop:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
+      console.log("تشغيل فيديو الانتظار التلقائي بشكل متكرر:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
       args.push(
         "-stream_loop", "-1", "-re", "-i", standbyInput,
         "-map", "0:v:0", "-map", "0:a:0?",
         "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p," + statusFilter
       );
     } else {
-      console.log("No automatic standby video uploaded; using the status screen.");
+      console.log("لا يوجد فيديو انتظار تلقائي؛ سيتم عرض شاشة الحالة.");
       args.push(
         "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
         "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
@@ -227,17 +227,17 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       "-f", "flv", destinations[0][1]
     );
 
-    console.log("Starting/restarting standby RTMP output.");
+    console.log("بدء أو إعادة تشغيل إرسال شاشة الانتظار إلى خادم البث.");
     const standby = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
     activeChildren = [standby];
 
     const ended = new Promise(resolve => {
       standby.once("error", error => {
-        console.error("Broadcast status FFmpeg error:", error.message);
+        console.error("خطأ FFmpeg أثناء إرسال شاشة الحالة:", error.message);
         resolve("ended");
       });
       standby.once("close", code => {
-        console.warn("Broadcast status screen FFmpeg ended with code:", code);
+        console.warn("Broadcast status screen انتهى FFmpeg برمز:", code);
         resolve("ended");
       });
     });
@@ -250,17 +250,17 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
         ended
       ]);
       if (next === "ended") {
-        console.warn("Standby RTMP output disconnected; it will be restarted.");
+        console.warn("انقطع إرسال شاشة الانتظار؛ ستتم إعادة تشغيله.");
         break;
       }
       if (Date.now() >= nextProbeAt) {
         if (await checkTwitchAvailable()) {
-          console.log("Twitch is back. Switching from status screen to live stream.");
+          console.log("عادت إشارة Twitch؛ جارٍ التحويل من شاشة الحالة إلى البث المباشر.");
           switchToLive = true;
           break;
         }
         writeStatus("إشارة البث ما زالت منقطعة\nنواصل محاولة إعادة الاتصال تلقائيًا\nتابعونا، وإذا رجعت الإشارة سيعود البث");
-        console.log("Twitch is still unavailable; keeping the broadcast status screen live.");
+        console.log("إشارة Twitch غير متاحة؛ نستمر في عرض شاشة الحالة.");
         nextProbeAt = Date.now() + 15000;
       }
     }
@@ -270,7 +270,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     if (activeChildren[0] === standby) activeChildren = [];
 
     if (switchToLive || manualOverlayFile || stopping) break;
-    console.warn("Retrying standby RTMP output in 5 seconds.");
+    console.warn("ستتم إعادة محاولة إرسال شاشة الانتظار بعد 5 ثوانٍ.");
     await sleep(5000);
   }
 }
@@ -278,11 +278,11 @@ async function runManualOverlayUntilStopped() {
   while (!stopping && manualOverlayFile) {
     const filePath = manualOverlayFile;
     if (!/^https:\/\//i.test(filePath) && !fs.existsSync(filePath)) {
-      console.error("Manual video source is unavailable:", filePath);
+      console.error("مصدر الفيديو اليدوي غير متاح:", filePath);
       manualOverlayFile = null;
       break;
     }
-    console.log("Playing manual video in loop:", /^https:\/\//i.test(filePath) ? "MP4 URL" : path.basename(filePath));
+    console.log("تشغيل الفيديو اليدوي بشكل متكرر:", /^https:\/\//i.test(filePath) ? "MP4 URL" : path.basename(filePath));
     const args = [
       "-hide_banner", "-loglevel", "debug",
       "-stream_loop", "-1", "-re", "-i", filePath,
@@ -306,11 +306,11 @@ async function runManualOverlayUntilStopped() {
         resolve();
       };
       overlay.once("error", error => {
-        console.error("Manual video FFmpeg error:", error.message);
+        console.error("خطأ FFmpeg في الفيديو اليدوي:", error.message);
         finish();
       });
       overlay.once("close", code => {
-        console.log("Manual video FFmpeg ended with code:", code);
+        console.log("Manual video انتهى FFmpeg برمز:", code);
         finish();
       });
       const check = setInterval(() => {
@@ -322,11 +322,11 @@ async function runManualOverlayUntilStopped() {
     });
     activeChildren = [];
     if (manualOverlayFile === filePath && !stopping) {
-      console.warn("Manual video encoder stopped unexpectedly; retrying in 5 seconds.");
+      console.warn("توقف مُرمّز الفيديو اليدوي بشكل غير متوقع؛ ستتم إعادة المحاولة بعد 5 ثوانٍ.");
       await sleep(5000);
     }
   }
-  console.log("Manual video mode ended; returning to Twitch live stream.");
+  console.log("انتهى وضع الفيديو اليدوي؛ العودة إلى بث Twitch المباشر.");
 }
 
 async function main() {
@@ -356,13 +356,13 @@ async function main() {
 
     let statusMessage;
     if (twitchOffline) {
-      console.log("Twitch stream is offline.");
+      console.log("قناة Twitch غير متصلة حاليًا.");
       statusMessage = "قناة البث غير مباشرة حاليًا\nننتظر عودتها ونحاول الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة";
     } else if (result.source === "ffmpeg") {
-      console.warn("RTMP/FFmpeg connection ended unexpectedly.");
+      console.warn("انقطع اتصال RTMP/FFmpeg بشكل غير متوقع.");
       statusMessage = "انقطع الاتصال بخادم البث\nنحاول إعادة الاتصال تلقائيًا\nإذا استقر الاتصال سيعود البث مباشرة";
     } else {
-      console.warn("Twitch stream connection ended unexpectedly.");
+      console.warn("انقطع الاتصال ببث Twitch بشكل غير متوقع.");
       statusMessage = "انقطعت إشارة Twitch\nنحاول إعادة الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة";
     }
 
@@ -380,7 +380,7 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
 main().catch(error => {
-  console.error("Restream worker error:", error?.message || error);
+  console.error("خطأ في عامل إعادة البث:", error?.message || error);
   shutdown();
   process.exitCode = 1;
 });
