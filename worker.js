@@ -8,7 +8,7 @@ const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
 const standbyMediaDirectory = path.join(require("os").tmpdir(), "live-control-media");
 const standbyMessagePath = path.join(standbyMediaDirectory, "standby-message.txt");
-const standbyAudioPath = path.join(standbyMediaDirectory, "waiting.mp3");
+const standbyAudioPath = path.join(standbyMediaDirectory, "waiting-github.mp3");
 const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
 const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
@@ -53,7 +53,7 @@ async function ensureStandbyAudio() {
     }
   } catch {}
 
-  const audioUrl = "https://basepic.com/9fDxWd82/Video-23-11-2026-07.25.mp3";
+  const audioUrl = "https://raw.githubusercontent.com/Abboudgg/live/main/waiting.mp3";
   const temporaryPath = standbyAudioPath + ".download";
   console.log("جارٍ تنزيل موسيقى الانتظار إلى ملف محلي...");
   const response = await fetch(audioUrl, {
