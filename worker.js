@@ -124,6 +124,7 @@ process.on("message", message => {
 
 let persistentPublisher = null;
 let publisherRestartTimer = null;
+let publisherRestartAttempts = 0;
 
 function stopChildren() {
   for (const child of activeChildren) {
@@ -144,15 +145,19 @@ function startPersistentPublisher() {
   console.log("تشغيل اتصال Restream المستمر؛ تبديل المصادر سيكون داخل الاتصال نفسه.");
   const child = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
   persistentPublisher = child;
+  const startedAt = Date.now();
   const scheduleRestart = reason => {
     if (persistentPublisher !== child) return;
     persistentPublisher = null;
-    console.error("اتصال Restream توقف (" + reason + ")؛ ستتم إعادة المحاولة خلال 5 ثوانٍ.");
+    if (Date.now() - startedAt >= 60000) publisherRestartAttempts = 0;
+    publisherRestartAttempts++;
+    const delay = Math.min(60000, 5000 * (2 ** Math.min(publisherRestartAttempts - 1, 4)));
+    console.error("اتصال Restream توقف (" + reason + ")؛ إعادة المحاولة خلال " + Math.round(delay / 1000) + " ثانية (محاولة " + publisherRestartAttempts + ").");
     if (!stopping && !publisherRestartTimer) {
       publisherRestartTimer = setTimeout(() => {
         publisherRestartTimer = null;
         if (!stopping) startPersistentPublisher();
-      }, 5000);
+      }, delay);
     }
   };
   child.once("error", error => scheduleRestart("خطأ: " + error.message));
