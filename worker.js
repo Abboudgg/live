@@ -295,7 +295,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
       "-b:v", "1500k", "-maxrate", "1500k", "-bufsize", "3000k",
       "-g", "60", "-keyint_min", "60",
-      "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
+      " -c:a", "aac", "-b:a", "96k", "-ar", "48000",
       "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
       "-f", "mpegts", producerOutput
     );
