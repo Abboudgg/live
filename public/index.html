@@ -12,7 +12,7 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
 .grid{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}.stack{display:grid;gap:16px}.panel{background:linear-gradient(180deg,#151a25,#111620);border:1px solid var(--line);border-radius:17px;overflow:hidden;box-shadow:0 12px 35px #0002}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;border-bottom:1px solid var(--line)}.panel-head h2{font-size:14px;margin:0;font-weight:750}.eyebrow{font-size:10px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase}.preview{aspect-ratio:16/9;background:#05070b;position:relative}.preview iframe{width:100%;height:100%;border:0}.preview-label{position:absolute;top:12px;right:12px;background:#090c12d9;border:1px solid #ffffff1c;border-radius:8px;padding:6px 9px;font-size:11px;z-index:1}.preview-bottom{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 15px;flex-wrap:wrap}.muted{color:var(--muted);font-size:12px}.links{display:flex;gap:8px;flex-wrap:wrap}.link{color:#c7bcff;text-decoration:none;font-size:12px;padding:7px 10px;border:1px solid #3b355b;border-radius:9px;background:#211d34}.link:hover{background:#2b2545}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{padding:14px;background:#111722;border:1px solid var(--line);border-radius:13px}.metric small{color:var(--muted);font-size:11px}.metric strong{display:block;font-size:15px;margin-top:8px}.metric .sub{font-size:10px;color:var(--muted);margin-top:4px}
 .platforms{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:13px}.platform-card{border:1px solid var(--line);background:#111722;border-radius:12px;padding:12px;min-width:0}.platform-title{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:750}.platform-state{font-size:11px;color:var(--muted);margin-top:9px}.platform-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:11px}.platform-stat{background:#0c111a;border:1px solid #252d3b;border-radius:9px;padding:8px}.platform-stat small{display:block;color:var(--muted);font-size:10px}.platform-stat strong{display:block;font-size:13px;margin-top:5px;font-variant-numeric:tabular-nums}.badge{font-size:10px;border-radius:99px;padding:4px 7px;background:#272331;color:#c5b9ff}.badge.good{background:#123325;color:#8ce8b7}.badge.wait{background:#332b18;color:#f1d48a}
-.control-body{padding:16px}.control-row{display:flex;gap:9px;flex-wrap:wrap}.btn{border:1px solid #384254;background:#1a2230;color:var(--text);padding:10px 14px;border-radius:10px;font-size:12px;font-weight:700;transition:.15s}.btn:hover{filter:brightness(1.18);transform:translateY(-1px)}.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}.btn.primary{background:linear-gradient(135deg,#7158df,#5741b9);border-color:#8069ec}.btn.success{background:#123a2a;border-color:#216b49;color:#9aefbf}.btn.danger{background:#3b1b23;border-color:#74313d;color:#ffabb3}.token{width:100%;background:#0b1018;color:var(--text);border:1px solid #30394a;border-radius:10px;padding:11px 12px;margin-bottom:10px;outline:none}.token:focus{border-color:var(--purple)}.statusline{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#bac4d2;flex-wrap:wrap}.url{display:block;color:#b9aaff;word-break:break-all;font-size:11px;margin-top:10px}.section-label{font-size:10px;color:var(--muted);letter-spacing:1px;margin:0 0 10px}.notice{padding:12px 14px;border:1px solid #4a4028;background:#211d15;color:#e8d8b5;border-radius:12px;font-size:11px;line-height:1.7}
+.control-body{padding:16px}.control-row{display:flex;gap:9px;flex-wrap:wrap}.btn{border:1px solid #384254;background:#1a2230;color:var(--text);padding:10px 14px;border-radius:10px;font-size:12px;font-weight:700;transition:.15s}.btn:hover{filter:brightness(1.18);transform:translateY(-1px)}.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}.btn.primary{background:linear-gradient(135deg,#7158df,#5741b9);border-color:#8069ec}.btn.success{background:#123a2a;border-color:#216b49;color:#9aefbf}.btn.danger{background:#3b1b23;border-color:#74313d;color:#ffabb3}.token{width:100%;background:#0b1018;color:var(--text);border:1px solid #30394a;border-radius:10px;padding:11px 12px;margin-bottom:10px;outline:none}.token:focus{border-color:var(--purple)}textarea.token{min-height:110px;resize:vertical;line-height:1.7}.statusline{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#bac4d2;flex-wrap:wrap}.url{display:block;color:#b9aaff;word-break:break-all;font-size:11px;margin-top:10px}.section-label{font-size:10px;color:var(--muted);letter-spacing:1px;margin:0 0 10px}.notice{padding:12px 14px;border:1px solid #4a4028;background:#211d15;color:#e8d8b5;border-radius:12px;font-size:11px;line-height:1.7}
 @media(max-width:950px){.grid{grid-template-columns:1fr}}@media(max-width:560px){.app{padding:13px}.topbar{align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{grid-column:1/-1}.platforms{grid-template-columns:1fr}.preview-bottom{align-items:flex-start;flex-direction:column}.panel-head{padding:13px}}
 </style>
 </head>
@@ -81,15 +81,13 @@ button,input{font:inherit}button{cursor:pointer}.app{max-width:1600px;margin:aut
   </section>
 
   <section class="panel">
-   <div class="panel-head"><div><div class="eyebrow">AUTOMATIC STANDBY VIDEO</div><h2 style="margin-top:4px">فيديو الانتظار التلقائي — عند انقطاع الإشارة</h2></div><span class="badge wait" id="standbyBadge">غير مضبوط</span></div>
+   <div class="panel-head"><div><div class="eyebrow">STANDBY MESSAGE</div><h2 style="margin-top:4px">رسالة شاشة الانتظار — عند انقطاع الإشارة</h2></div><span class="badge wait" id="standbyBadge">الرسالة الافتراضية</span></div>
    <div class="control-body">
-    <p class="muted" style="margin:0 0 12px">أدخل رابط MP4 مستقلًا. عند انقطاع إشارة Twitch يعمل تلقائيًا بنظام LOOP، وعند عودة الإشارة يرجع البث تلقائيًا.</p>
-    <input id="standbyUrlInput" class="token" type="url" inputmode="url" placeholder="https://example.com/standby.mp4">
-    <div class="control-row"><button class="btn primary" id="saveStandbyUrl" type="button">حفظ رابط فيديو الانتظار</button></div>
-    <input id="standbyFile" class="token" type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4v">
-    <div class="control-row"><button class="btn primary" id="uploadStandby" style="display:none" type="button">＋ رفع فيديو الانتظار</button><button class="btn" id="refreshStandby" style="display:none" type="button">↻ تحديث الحالة</button><button class="btn danger" id="deleteStandby" type="button">حذف فيديو الانتظار</button></div>
-    <div class="statusline"><span class="dot" id="standbyDot"></span><span id="standbyStatus">لم يتم رفع فيديو انتظار مستقل بعد؛ ستظهر رسالة توضح سبب انقطاع البث ومحاولة إرجاعه تلقائيًا.</span></div>
-    <p class="muted" style="margin:10px 0 0">هذا الرابط مستقل عن شاشة الانتظار اليدوية. يجب أن يكون رابط MP4 مباشرًا ومتاحًا للعامة عبر HTTPS.</p>
+    <p class="muted" style="margin:0 0 12px">اكتب الرسالة التي تريد ظهورها على شاشة الانتظار عند انقطاع البث. اترك المربع فارغًا لاستخدام رسالة الحالة التلقائية.</p>
+    <textarea id="standbyMessageInput" class="token" rows="4" maxlength="400" placeholder="مثال: البث متوقف مؤقتًا، نرجع لكم بعد قليل ❤️"></textarea>
+    <div class="control-row"><button class="btn primary" id="saveStandbyMessage" type="button">حفظ رسالة الانتظار</button><button class="btn" id="refreshStandbyMessage" type="button">↻ تحميل الرسالة المحفوظة</button></div>
+    <div class="statusline"><span class="dot" id="standbyDot"></span><span id="standbyStatus">أدخل رمز التحكم ثم اكتب رسالتك واحفظها.</span></div>
+    <p class="muted" style="margin:10px 0 0">تظهر الرسالة فوق خلفية شاشة الانتظار، وتبقى موسيقى الانتظار بالخلفية بمستوى 20%.</p>
    </div>
   </section>
   <section class="metrics">
@@ -149,7 +147,7 @@ async function toggleManualStandby(){
  }catch(e){setManualStandbyUi(currently,e.message);}
 }
 document.getElementById("saveMediaUrl").addEventListener("click",saveMediaUrl);
-streamTokenInput.addEventListener("change",()=>{refreshManualStandby();refreshStandby()});
+streamTokenInput.addEventListener("change",()=>{refreshManualStandby();refreshStandbyMessage()});
 document.getElementById("toggleManualStandby").addEventListener("click",toggleManualStandby);
 
 function setMediaStatus(message,good=false){mediaStatus.textContent=message;document.getElementById("mediaDot").className="dot "+(good?"green":"");document.getElementById("mediaBadge").textContent=good?"جاهز":"المرفقات"}
@@ -196,50 +194,33 @@ document.getElementById("uploadMedia").addEventListener("click",uploadMedia);
 document.getElementById("refreshMedia").addEventListener("click",refreshMedia);
 document.getElementById("stopMedia").addEventListener("click",stopMedia);
 
-const standbyFileInput=document.getElementById("standbyFile");
 function setStandbyStatus(message,configured=false){
  document.getElementById("standbyStatus").textContent=message;
  document.getElementById("standbyDot").className="dot "+(configured?"green":"");
- document.getElementById("standbyBadge").textContent=configured?"جاهز تلقائيًا":"غير مضبوط";
+ document.getElementById("standbyBadge").textContent=configured?"رسالة محفوظة":"الرسالة الافتراضية";
  document.getElementById("standbyBadge").className="badge "+(configured?"good":"wait");
 }
-
-async function saveStandbyUrl(){
- const url=document.getElementById("standbyUrlInput").value.trim();
+async function refreshStandbyMessage(){
+ const token=streamTokenInput.value.trim();
+ if(!token){setStandbyStatus("أدخل رمز التحكم أولاً لتحميل الرسالة المحفوظة.");return}
  try{
-  const r=await fetch("/standby-video/url",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/json"},body:JSON.stringify({url})});
-  const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حفظ الرابط");
-  setStandbyStatus("تم حفظ رابط MP4. سيعمل تلقائيًا عند انقطاع إشارة Twitch.",true);
- }catch(e){setStandbyStatus(e.message,false);}
-}
-document.getElementById("saveStandbyUrl").addEventListener("click",saveStandbyUrl);
-async function refreshStandby(){
- const token=streamTokenInput.value.trim();if(!token){setStandbyStatus("أدخل رمز التحكم أعلاه لقراءة حالة فيديو الانتظار.");return}
- try{
-  const r=await fetch("/standby-video",{headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر قراءة الحالة");
-  if(d.configured){if(d.url)document.getElementById("standbyUrlInput").value=d.url;setStandbyStatus(d.url?"رابط MP4 محفوظ وجاهز. سيعمل تلقائيًا عند فقد إشارة Twitch.":"فيديو الانتظار مرفوع وجاهز. سيعمل تلقائيًا عند فقد إشارة Twitch.",true);}
-  else setStandbyStatus("لا يوجد فيديو انتظار مرفوع. ستظهر رسالة توضح حالة البث ومحاولة إعادة الاتصال تلقائيًا.",false);
+  const r=await fetch("/standby-message",{headers:mediaAuthHeaders()});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر تحميل الرسالة");
+  document.getElementById("standbyMessageInput").value=d.message||"";
+  setStandbyStatus(d.message?"تم تحميل رسالة شاشة الانتظار المحفوظة.":"لا توجد رسالة مخصصة؛ ستظهر رسالة الحالة التلقائية.",Boolean(d.message));
  }catch(e){setStandbyStatus(e.message,false)}
 }
-async function uploadStandby(){
- const file=standbyFileInput.files?.[0];if(!file){setStandbyStatus("اختر فيديو الانتظار أولاً.");return}
- if(file.size>200*1024*1024){setStandbyStatus("حجم الفيديو أكبر من 200 ميجابايت.");return}
- const button=document.getElementById("uploadStandby");button.disabled=true;setStandbyStatus("جاري رفع فيديو الانتظار…");
+async function saveStandbyMessage(){
+ const message=document.getElementById("standbyMessageInput").value;
+ const button=document.getElementById("saveStandbyMessage");button.disabled=true;
  try{
-  const r=await fetch("/standby-video/upload",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/octet-stream","x-file-name":encodeURIComponent(file.name)},body:await file.arrayBuffer()});
-  const d=await r.json();if(!r.ok)throw new Error(d.error||"فشل رفع الفيديو");
-  standbyFileInput.value="";setStandbyStatus("تم حفظ فيديو الانتظار. سيعمل تلقائيًا عند انقطاع إشارة Twitch.",true);await refreshStandby();
+  const r=await fetch("/standby-message",{method:"POST",headers:{...mediaAuthHeaders(),"Content-Type":"application/json"},body:JSON.stringify({message})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حفظ الرسالة");
+  setStandbyStatus(d.configured?"تم حفظ الرسالة؛ ستظهر على شاشة الانتظار.":"تم إلغاء الرسالة المخصصة والعودة إلى النص التلقائي.",Boolean(d.configured));
  }catch(e){setStandbyStatus(e.message,false)}finally{button.disabled=false}
 }
-async function deleteStandby(){
- try{
-  const r=await fetch("/standby-video",{method:"DELETE",headers:mediaAuthHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حذف الفيديو");
-  setStandbyStatus("تم حذف فيديو الانتظار. عند الانقطاع ستظهر رسالة توضح حالة البث ومحاولة إعادته.",false);
- }catch(e){setStandbyStatus(e.message,false)}
-}
-document.getElementById("uploadStandby").addEventListener("click",uploadStandby);
-document.getElementById("refreshStandby").addEventListener("click",refreshStandby);
-document.getElementById("deleteStandby").addEventListener("click",deleteStandby);
+document.getElementById("saveStandbyMessage").addEventListener("click",saveStandbyMessage);
+document.getElementById("refreshStandbyMessage").addEventListener("click",refreshStandbyMessage);
 
 async function refreshRestreamStatus(){try{const d=await fetch("/restream/status").then(r=>r.json());const labels={running:"العامل يعمل",starting:"جاري التشغيل",restarting:"يعيد المحاولة تلقائيًا",stopping:"جاري الإيقاف",stopped:"متوقف"};const state=labels[d.status]||"الحالة غير معروفة";const healthy=d.status==="running";const retry=d.status==="restarting"?" · المحاولة "+(d.restartAttempts||1):"";document.getElementById("rtmpStatus").textContent="عامل إعادة البث: "+state+(d.pid?" · PID "+d.pid:"")+retry+(d.configured?" · إعدادات الوجهة موجودة":" · إعدادات الوجهة ناقصة");document.getElementById("rtmpBadge").textContent=state;document.getElementById("rtmpBadge").className="badge "+(healthy?"good":d.status==="restarting"?"wait":"wait");document.getElementById("rtmpDot").className="dot "+(healthy?"green":d.status==="stopped"?"red":"")}catch{document.getElementById("rtmpStatus").textContent="تعذر قراءة حالة عامل إعادة البث"}}
 async function controlRestream(action){const token=streamTokenInput.value.trim();if(!token){streamStatus.textContent="أدخل رمز STREAM_CONTROL_TOKEN أولاً.";streamTokenInput.focus();return}const button=document.getElementById(action==="start"?"startRestream":"stopRestream");button.disabled=true;try{const r=await fetch("/restream/"+action,{method:"POST",headers:{"x-stream-control-token":token}});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر تنفيذ الطلب");document.getElementById("rtmpStatus").textContent="طلب "+(action==="start"?"تشغيل":"إيقاف")+" محرك RTMP تم إرساله";await refreshRestreamStatus()}catch(e){document.getElementById("rtmpStatus").textContent=e.message}finally{button.disabled=false}}
