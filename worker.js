@@ -6,9 +6,9 @@ const path = require("path");
 
 const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
-const standbyVideoPath = path.join(require("os").tmpdir(), "live-control-media", "automatic-standby-video");
-const standbyAudioPath = path.join(require("os").tmpdir(), "live-control-media", "waiting.mp3");
-let standbyVideoUrl = "";
+const standbyMediaDirectory = path.join(require("os").tmpdir(), "live-control-media");
+const standbyMessagePath = path.join(standbyMediaDirectory, "standby-message.txt");
+const standbyAudioPath = path.join(standbyMediaDirectory, "waiting.mp3");
 const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
 const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
@@ -109,9 +109,6 @@ process.on("message", message => {
     manualOverlayFile = message.filePath;
     overlayRevision++;
     console.log("تم طلب تشغيل الفيديو اليدوي:", path.basename(message.filePath));
-  } else if (message?.type === "standby-url" && typeof message.url === "string") {
-    standbyVideoUrl = message.url;
-    console.log("تم تحديث رابط فيديو الانتظار التلقائي.");
   } else if (message?.type === "overlay-stop") {
     manualOverlayFile = null;
     overlayRevision++;
@@ -283,11 +280,17 @@ async function checkTwitchAvailable() {
 async function runStandbyUntilLive(statusMessage = "انقطعت إشارة البث\\nنحاول إعادة الاتصال تلقائيًا\\nإذا رجعت الإشارة سيعود البث مباشرة", manual = false) {
   console.log("عرض شاشة انتظار ثابتة مع موسيقى خلفية حتى عودة Twitch.");
   const textFile = path.join(__dirname, "waiting.txt");
+  let currentStatusMessage = statusMessage;
   const writeStatus = message => {
-    try { fs.writeFileSync(textFile, message, "utf8"); }
-    catch (error) { console.error("تعذّر تحديث نص حالة البث:", error.message); }
+    try {
+      let customMessage = "";
+      try { customMessage = fs.readFileSync(standbyMessagePath, "utf8").trim(); } catch {}
+      fs.writeFileSync(textFile, customMessage || message, "utf8");
+    } catch (error) {
+      console.error("تعذّر تحديث نص حالة البث:", error.message);
+    }
   };
-  writeStatus(statusMessage);
+  writeStatus(currentStatusMessage);
 
   const statusFilter =
     "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf" +
@@ -297,6 +300,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     ":box=1:boxcolor=0x5b1028@0.86:boxborderw=24:text_shaping=1";
 
   let nextProbeAt = 0;
+  let nextMessageRefreshAt = 0;
   while (!stopping) {
     if (manual && resumeLiveRequested) {
       resumeLiveRequested = false;
@@ -364,13 +368,18 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
         console.warn("انقطع إرسال شاشة الانتظار؛ ستتم إعادة تشغيله.");
         break;
       }
+      if (Date.now() >= nextMessageRefreshAt) {
+        writeStatus(currentStatusMessage);
+        nextMessageRefreshAt = Date.now() + 1000;
+      }
       if (!manual && Date.now() >= nextProbeAt) {
         if (await checkTwitchAvailable()) {
           console.log("عادت إشارة Twitch؛ جارٍ التحويل من شاشة الانتظار إلى البث المباشر.");
           switchToLive = true;
           break;
         }
-        writeStatus("إشارة البث ما زالت منقطعة\\nنواصل محاولة إعادة الاتصال تلقائيًا\\nتابعونا، وإذا رجعت الإشارة سيعود البث");
+        currentStatusMessage = "إشارة البث ما زالت منقطعة\\nنواصل محاولة إعادة الاتصال تلقائيًا\\nتابعونا، وإذا رجعت الإشارة سيعود البث";
+        writeStatus(currentStatusMessage);
         console.log("إشارة Twitch غير متاحة؛ نستمر في عرض شاشة الانتظار.");
         nextProbeAt = Date.now() + 15000;
       }
