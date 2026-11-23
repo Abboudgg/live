@@ -610,6 +610,12 @@ app.post("/restream/start", (req, res) => {
   return res.status(202).json({ ok: true, status: "starting" });
 });
 
+app.post("/restream/test", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  if (!restreamWorker?.connected) return res.status(503).json({ error: "محرك إعادة البث غير متصل." });
+  restreamWorker.send({ type: "publish-test" });
+  return res.status(202).json({ ok: true, status: "publish_test_started", durationSeconds: 15 });
+});
 app.post("/restream/stop", (req, res) => {
   if (!restreamControlAuthorized(req)) {
     return res.status(401).json({ error: "رمز التحكم غير صحيح." });
