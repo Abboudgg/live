@@ -7,14 +7,12 @@ const os = require("os");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const chatClients = new Set();
 let kickStatus = "pending_setup";
 let kickBroadcasterUserId = null;
 const kickStats = { isLive: null, viewers: null, followers: null, updatedAt: null };
 const tiktokStats = { isLive: null, viewers: null, followers: null, updatedAt: null };
 let kickStatsTimer = null;
 let kickPublicKeyPromise = null;
-const seenKickEvents = new Map();
 
 app.disable("x-powered-by");
 
@@ -26,82 +24,6 @@ let manualStandbyUrl = "";
 let manualStandbyEnabled = false;
 const allowedVideoExtensions = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
 const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
-
-async function getKickPublicKey() {
-  if (!kickPublicKeyPromise) {
-    kickPublicKeyPromise = fetch("https://api.kick.com/public/v1/public-key")
-      .then(async response => {
-        if (!response.ok) throw new Error("Kick public key request failed: " + response.status);
-        const data = await response.json();
-        const key = data.public_key || data.data?.public_key || data.key || data.data?.key;
-        if (!key || typeof key !== "string") throw new Error("Unexpected Kick public key response");
-        return key;
-      })
-      .catch(error => {
-        kickPublicKeyPromise = null;
-        throw error;
-      });
-  }
-  return kickPublicKeyPromise;
-}
-
-async function verifyKickWebhook(req, rawBody) {
-  const messageId = req.get("Kick-Event-Message-Id");
-  const timestamp = req.get("Kick-Event-Message-Timestamp");
-  const signature = req.get("Kick-Event-Signature");
-  if (!messageId || !timestamp || !signature) return false;
-
-  const eventTime = Date.parse(timestamp);
-  if (!Number.isFinite(eventTime) || Math.abs(Date.now() - eventTime) > 5 * 60 * 1000) return false;
-
-  const publicKey = await getKickPublicKey();
-  const signedPayload = Buffer.from(messageId + "." + timestamp + "." + rawBody.toString("utf8"));
-  return crypto.verify(
-    "RSA-SHA256",
-    signedPayload,
-    publicKey,
-    Buffer.from(signature, "base64")
-  );
-}
-
-app.post("/kick/webhook", express.raw({ type: "application/json", limit: "1mb" }), async (req, res) => {
-  try {
-    if (!Buffer.isBuffer(req.body)) return res.status(400).send("Expected JSON body");
-    const valid = await verifyKickWebhook(req, req.body);
-    if (!valid) return res.status(401).send("Invalid Kick webhook signature");
-
-    const messageId = req.get("Kick-Event-Message-Id");
-    if (seenKickEvents.has(messageId)) return res.status(200).send("Duplicate");
-    seenKickEvents.set(messageId, Date.now());
-    for (const [id, time] of seenKickEvents) {
-      if (Date.now() - time > 10 * 60 * 1000) seenKickEvents.delete(id);
-    }
-
-    const eventType = req.get("Kick-Event-Type");
-    const payload = JSON.parse(req.body.toString("utf8"));
-
-    if (eventType === "webhook_callback_verification") {
-      return res.status(200).type("text/plain").send(String(payload.challenge || ""));
-    }
-
-    if (eventType === "chat.message.sent") {
-      const sender = payload.sender || {};
-      publishChat({
-        platform: "kick",
-        username: sender.username || sender.slug || "Kick",
-        message: payload.content || "",
-        timestamp: Date.now()
-      });
-      kickStatus = "connected";
-    }
-
-    return res.status(200).send("OK");
-  } catch (error) {
-    console.error("Kick webhook error:", error?.message || error);
-    return res.status(500).send("Webhook processing failed");
-  }
-});
-
 
 // Kick OAuth 2.1 + PKCE. Credentials are supplied only through Render environment variables.
 const kickOAuthStates = new Map();
@@ -122,7 +44,7 @@ app.get("/kick/connect", (req, res) => {
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: "user:read channel:read events:subscribe",
+    scope: "user:read channel:read",
     code_challenge: challenge,
     code_challenge_method: "S256",
     state
@@ -177,27 +99,8 @@ app.get("/kick/callback", async (req, res) => {
     refreshKickStats().catch(() => {});
     if (!kickStatsTimer) kickStatsTimer = setInterval(() => refreshKickStats().catch(() => {}), 60000);
 
-    const subscriptionResponse = await fetch("https://api.kick.com/public/v1/events/subscriptions", {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + kickUserAccessToken,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        broadcaster_user_id: broadcasterUserId,
-        method: "webhook",
-        events: [{ name: "chat.message.sent", version: 1 }]
-      })
-    });
-    const subscriptionData = await subscriptionResponse.json().catch(() => ({}));
-    if (!subscriptionResponse.ok) {
-      const kickErrorDetails = subscriptionData.message || subscriptionData.error || JSON.stringify(subscriptionData).slice(0, 1000) || "No response details";
-      console.error("Kick event subscription failed:", JSON.stringify({ status: subscriptionResponse.status, statusText: subscriptionResponse.statusText, details: kickErrorDetails }));
-      kickStatus = "authorized_subscription_pending";
-      return res.status(200).send("Kick connected, but chat event subscription failed. Check webhook settings and server logs.");
-    }
-    kickStatus = "subscription_created_waiting_for_message";
-    return res.status(200).send("Kick authorization complete. Chat webhook subscription request sent. You can close this page.");
+    kickStatus = "connected";
+    return res.status(200).send("Kick authorization complete. Channel statistics are connected. You can close this page.");
   } catch (error) {
     console.error("Kick OAuth callback error:", error?.message || error);
     return res.status(500).send("Kick connection failed. Please try again.");
@@ -206,15 +109,8 @@ app.get("/kick/callback", async (req, res) => {
 
 app.use(express.static(path.join(__dirname, "public")));
 
-function publishChat(message) {
-  const payload = `event: chat\ndata: ${JSON.stringify(message)}\n\n`;
-  for (const client of chatClients) {
-    try { client.write(payload); } catch { chatClients.delete(client); }
-  }
-}
-
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "live-multi-chat" });
+  res.json({ ok: true, service: "live-broadcast" });
 });
 
 app.get("/config", (_req, res) => {
@@ -223,10 +119,6 @@ app.get("/config", (_req, res) => {
     kickUsername: process.env.KICK_USERNAME || "cass-sa",
     tiktokUsername: process.env.TIKTOK_USERNAME || "cass_ksa_"
   });
-});
-
-app.get("/chat-status", (_req, res) => {
-  res.json({ tiktok: tiktokStatus, kick: kickStatus });
 });
 
 app.get("/platform-stats", (_req, res) => {
@@ -249,23 +141,10 @@ async function refreshKickStats() {
   kickStats.updatedAt = Date.now();
 }
 
-app.get("/events", (req, res) => {
-  res.set({
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no"
-  });
-  res.flushHeaders?.();
-  res.write("event: ready\ndata: {}\n\n");
-  chatClients.add(res);
-  req.on("close", () => chatClients.delete(res));
-});
-
 let tiktokStatus = "starting";
 let tiktokStarted = false;
 
-async function startTikTokChat() {
+async function startTikTokStats() {
   if (tiktokStarted) return;
   tiktokStarted = true;
   const username = (process.env.TIKTOK_USERNAME || "cass_ksa_").replace(/^@/, "");
@@ -282,15 +161,6 @@ async function startTikTokChat() {
         if (count !== undefined && Number.isFinite(Number(count))) tiktokStats.viewers = Number(count);
         tiktokStats.isLive = true;
         tiktokStats.updatedAt = Date.now();
-      });
-
-      connection.on(WebcastEvent.CHAT, data => {
-        publishChat({
-          platform: "tiktok",
-          username: data.user?.uniqueId || data.user?.nickname || "TikTok",
-          message: data.comment || "",
-          timestamp: Date.now()
-        });
       });
 
       connection.on("disconnected", () => {
@@ -310,7 +180,7 @@ async function startTikTokChat() {
         if (followers !== undefined && Number.isFinite(Number(followers))) tiktokStats.followers = Number(followers);
       } catch {}
       tiktokStats.updatedAt = Date.now();
-      console.log(`TikTok chat connected for @${username}`);
+      console.log(`TikTok live statistics connected for @${username}`);
 
       await new Promise(resolve => {
         connection.on("disconnected", resolve);
@@ -321,7 +191,7 @@ async function startTikTokChat() {
       tiktokStats.isLive = false;
       tiktokStats.viewers = null;
       tiktokStats.updatedAt = Date.now();
-      console.warn("TikTok chat connection unavailable:", error?.message || error);
+      console.warn("TikTok live statistics unavailable:", error?.message || error);
     }
 
     try { await connection?.disconnect(); } catch {}
@@ -650,6 +520,6 @@ process.on("SIGINT", () => restreamWorker?.kill("SIGINT"));
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Web dashboard listening on port ${PORT}`);
-  startTikTokChat().catch(error => console.error("TikTok chat startup error:", error));
+  startTikTokStats().catch(error => console.error("TikTok statistics startup error:", error));
   startRestreamWorker();
 });
