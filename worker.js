@@ -196,8 +196,9 @@ async function runAttempt() {
     "-map", "0:v:0?",
     "-map", "0:a:0?",
     "-map", "1:a:0",
-    "-vf", liveVideoFilter,
-    ...liveVideoArgs,
+    // Twitch already supplies 1280x720 H.264 at approximately 30 fps.
+    // Copy the video stream to avoid CPU-heavy re-encoding while preserving 720p quality.
+    "-c:v", "copy",
     ...audioArgs,
     "-max_muxing_queue_size", "1024",
     ...transportArgs
