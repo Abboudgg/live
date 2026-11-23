@@ -1,10 +1,13 @@
 const { spawn } = require("child_process");
+const { Readable } = require("stream");
+const { pipeline } = require("stream/promises");
 const fs = require("fs");
 const path = require("path");
 
 const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
 const standbyVideoPath = path.join(require("os").tmpdir(), "live-control-media", "automatic-standby-video");
+const standbyAudioPath = path.join(require("os").tmpdir(), "live-control-media", "waiting.mp3");
 let standbyVideoUrl = "";
 const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
 const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
@@ -33,6 +36,45 @@ if (destinations.length === 0) {
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function ensureStandbyAudio() {
+  await fs.promises.mkdir(path.dirname(standbyAudioPath), { recursive: true });
+  try {
+    const cached = await fs.promises.stat(standbyAudioPath);
+    if (cached.isFile() && cached.size > 0) {
+      console.log("ملف موسيقى الانتظار موجود محليًا؛ سيتم استخدام النسخة المحفوظة.");
+      return standbyAudioPath;
+    }
+  } catch {}
+
+  const audioUrl = "https://basepic.com/9fDxWd82/Video-23-11-2026-07.25.mp3";
+  const temporaryPath = standbyAudioPath + ".download";
+  console.log("جارٍ تنزيل موسيقى الانتظار إلى ملف محلي...");
+  const response = await fetch(audioUrl, {
+    signal: AbortSignal.timeout(60000),
+    headers: { "user-agent": "live-control-room/1.1" }
+  });
+  if (!response.ok || !response.body) {
+    throw new Error("تعذّر تنزيل ملف الموسيقى؛ HTTP " + response.status);
+  }
+
+  try {
+    await pipeline(
+      Readable.fromWeb(response.body),
+      fs.createWriteStream(temporaryPath)
+    );
+    const downloaded = await fs.promises.stat(temporaryPath);
+    if (!downloaded.isFile() || downloaded.size === 0) {
+      throw new Error("ملف الموسيقى الذي تم تنزيله فارغ.");
+    }
+    await fs.promises.rename(temporaryPath, standbyAudioPath);
+    console.log("تم تنزيل موسيقى الانتظار وحفظها محليًا بنجاح.");
+    return standbyAudioPath;
+  } catch (error) {
+    await fs.promises.rm(temporaryPath, { force: true }).catch(() => {});
+    throw error;
+  }
+}
 let stopping = false;
 let publishTestRequested = false;
 let manualStandbyRequested = false;
@@ -241,7 +283,6 @@ async function checkTwitchAvailable() {
 async function runStandbyUntilLive(statusMessage = "انقطعت إشارة البث\\nنحاول إعادة الاتصال تلقائيًا\\nإذا رجعت الإشارة سيعود البث مباشرة", manual = false) {
   console.log("عرض شاشة انتظار ثابتة مع موسيقى خلفية حتى عودة Twitch.");
   const textFile = path.join(__dirname, "waiting.txt");
-  const standbyAudioUrl = "https://basepic.com/9fDxWd82/Video-23-11-2026-07.25.mp3";
   const writeStatus = message => {
     try { fs.writeFileSync(textFile, message, "utf8"); }
     catch (error) { console.error("تعذّر تحديث نص حالة البث:", error.message); }
@@ -272,10 +313,18 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       break;
     }
 
+    try {
+      await ensureStandbyAudio();
+    } catch (error) {
+      console.error("تعذّر تجهيز موسيقى شاشة الانتظار:", error.message);
+      await sleep(15000);
+      continue;
+    }
+
     const args = [
       "-hide_banner", "-loglevel", "info",
       "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
-      "-stream_loop", "-1", "-re", "-i", standbyAudioUrl,
+      "-stream_loop", "-1", "-re", "-i", standbyAudioPath,
       "-map", "0:v:0", "-map", "1:a:0",
       "-vf", statusFilter,
       "-af", "volume=0.20"
