@@ -331,7 +331,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     const args = [
       "-hide_banner", "-loglevel", "info",
       "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=854x480:r=24",
-      "-stream_loop", "-1", "-re", "-i", standbyAudioPath,
+      "-stream_loop", "-1", "-i", standbyAudioPath,
       "-map", "0:v:0", "-map", "1:a:0",
       "-vf", "fps=24,format=yuv420p," + statusFilter,
       "-af", "volume=0.20"
