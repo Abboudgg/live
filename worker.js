@@ -31,6 +31,9 @@ if (destinations.length === 0) {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 let stopping = false;
 let publishTestRequested = false;
+let manualStandbyRequested = false;
+let resumeLiveRequested = false;
+let manualStandbyMode = false;
 let activeChildren = [];
 let manualOverlayFile = null;
 let overlayRevision = 0;
@@ -39,6 +42,18 @@ process.on("message", message => {
   if (message?.type === "publish-test") {
     publishTestRequested = true;
     console.log("وصل طلب اختبار النشر المؤقت.");
+  }
+  if (message?.type === "manual-standby") {
+    manualStandbyMode = true;
+    manualStandbyRequested = true;
+    resumeLiveRequested = false;
+    console.log("تم طلب شاشة الانتظار اليدوية.");
+  }
+  if (message?.type === "resume-live") {
+    manualStandbyMode = false;
+    manualStandbyRequested = false;
+    resumeLiveRequested = true;
+    console.log("تم طلب العودة إلى بث Twitch.");
   }
   if (message?.type === "overlay-start" && typeof message.filePath === "string") {
     manualOverlayFile = message.filePath;
@@ -84,7 +99,7 @@ async function runAttempt() {
 
   const ffmpegArgs = [
     "-hide_banner",
-    "-loglevel", "debug",
+    "-loglevel", "info",
     "-fflags", "+genpts",
     "-i", "pipe:0",
     "-map", "0:v:0?",
@@ -134,6 +149,11 @@ async function runAttempt() {
       if (manualOverlayFile && !settled) {
         console.log("التحويل من Twitch إلى الفيديو اليدوي.");
         finish({ source: "overlay", code: 0 });
+      }
+      if (manualStandbyRequested && !settled) {
+        manualStandbyRequested = false;
+        console.log("إيقاف بث Twitch للانتقال إلى شاشة الانتظار اليدوية.");
+        finish({ source: "manual-standby", code: 0 });
       }
       if (publishTestRequested && !settled) {
         console.log("إيقاف المصدر الحالي لبدء اختبار النشر المؤقت.");
@@ -187,7 +207,7 @@ async function checkTwitchAvailable() {
   });
 }
 
-async function runStandbyUntilLive(statusMessage = "انقطعت إشارة البث\nنحاول إعادة الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة") {
+async function runStandbyUntilLive(statusMessage = "انقطعت إشارة البث\nنحاول إعادة الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة", manual = false) {
   console.log("عرض شاشة حالة البث حتى عودة Twitch.");
   const textFile = path.join(__dirname, "waiting.txt");
   const writeStatus = message => {
@@ -205,6 +225,11 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
   let nextProbeAt = 0;
   while (!stopping) {
+    if (manual && resumeLiveRequested) {
+      resumeLiveRequested = false;
+      console.log("تم استلام أمر العودة إلى Twitch.");
+      break;
+    }
     if (publishTestRequested) {
       publishTestRequested = false;
       await runPublishTest();
@@ -217,7 +242,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
     const hasStandbyVideo = Boolean(standbyVideoUrl) || fs.existsSync(standbyVideoPath);
     const standbyInput = standbyVideoUrl || standbyVideoPath;
-    const args = ["-hide_banner", "-loglevel", "debug"];
+    const args = ["-hide_banner", "-loglevel", "info"];
     if (hasStandbyVideo) {
       console.log("تشغيل فيديو الانتظار التلقائي بشكل متكرر:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
       args.push(
@@ -258,7 +283,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
     let switchToLive = false;
     while (!stopping && !switchToLive) {
-      if (manualOverlayFile || publishTestRequested) break;
+      if (manualOverlayFile || publishTestRequested || (manual && resumeLiveRequested)) break;
       const next = await Promise.race([
         sleep(250).then(() => "check"),
         ended
@@ -267,7 +292,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
         console.warn("انقطع إرسال شاشة الانتظار؛ ستتم إعادة تشغيله.");
         break;
       }
-      if (Date.now() >= nextProbeAt) {
+      if (!manual && Date.now() >= nextProbeAt) {
         if (await checkTwitchAvailable()) {
           console.log("عادت إشارة Twitch؛ جارٍ التحويل من شاشة الحالة إلى البث المباشر.");
           switchToLive = true;
@@ -283,13 +308,13 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     await Promise.race([ended, sleep(3000)]);
     if (activeChildren[0] === standby) activeChildren = [];
 
-    if (switchToLive || manualOverlayFile || publishTestRequested || stopping) break;
+    if (switchToLive || manualOverlayFile || publishTestRequested || stopping || (manual && resumeLiveRequested)) break;
     console.warn("ستتم إعادة محاولة إرسال شاشة الانتظار بعد 5 ثوانٍ.");
     await sleep(5000);
   }
 }
 async function runManualOverlayUntilStopped() {
-  while (!stopping && manualOverlayFile && !publishTestRequested) {
+  while (!stopping && manualOverlayFile && !publishTestRequested && !manualStandbyMode) {
     const filePath = manualOverlayFile;
     if (!/^https:\/\//i.test(filePath) && !fs.existsSync(filePath)) {
       console.error("مصدر الفيديو اليدوي غير متاح:", filePath);
@@ -298,7 +323,7 @@ async function runManualOverlayUntilStopped() {
     }
     console.log("تشغيل الفيديو اليدوي بشكل متكرر:", /^https:\/\//i.test(filePath) ? "MP4 URL" : path.basename(filePath));
     const args = [
-      "-hide_banner", "-loglevel", "debug",
+      "-hide_banner", "-loglevel", "info",
       "-stream_loop", "-1", "-re", "-i", filePath,
       "-map", "0:v:0", "-map", "0:a:0?",
       "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
@@ -328,7 +353,7 @@ async function runManualOverlayUntilStopped() {
         finish();
       });
       const check = setInterval(() => {
-        if (stopping || publishTestRequested || !manualOverlayFile || manualOverlayFile !== filePath) {
+        if (stopping || publishTestRequested || manualStandbyMode || !manualOverlayFile || manualOverlayFile !== filePath) {
           if (!overlay.killed) overlay.kill("SIGTERM");
           finish();
         }
@@ -352,6 +377,13 @@ async function main() {
 
     const result = await runAttempt();
     if (stopping) break;
+
+    if (manualStandbyMode || result.source === "manual-standby") {
+      manualStandbyRequested = false;
+      await runStandbyUntilLive("شاشة الانتظار\nاضغط ابدأ البث للعودة إلى Twitch", true);
+      if (resumeLiveRequested) resumeLiveRequested = false;
+      continue;
+    }
 
     if (manualOverlayFile || result.source === "overlay") {
       await runManualOverlayUntilStopped();
@@ -387,7 +419,7 @@ async function main() {
 async function runPublishTest() {
   console.log("بدء اختبار نشر ثابت إلى Restream لمدة 15 ثانية.");
   const args = [
-    "-hide_banner", "-loglevel", "debug",
+    "-hide_banner", "-loglevel", "info",
     "-re", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30",
     "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
     "-t", "15",
