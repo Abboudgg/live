@@ -604,10 +604,20 @@ app.post("/restream/start", (req, res) => {
     return res.status(503).json({ error: "إعدادات وجهة RTMP غير مكتملة في Render." });
   }
   restreamStopRequested = false;
-  if (restreamWorker) return res.json({ ok: true, status: restreamWorkerState });
+  if (restreamWorker) {
+    if (restreamWorker.connected) restreamWorker.send({ type: "resume-live" });
+    return res.json({ ok: true, status: restreamWorkerState, action: "resume-live" });
+  }
   startRestreamWorker();
   if (!restreamWorker) return res.status(500).json({ error: "تعذر تشغيل محرك إعادة البث. راجع سجلات Render." });
   return res.status(202).json({ ok: true, status: "starting" });
+});
+
+app.post("/restream/standby", (req, res) => {
+  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
+  if (!restreamWorker?.connected) return res.status(503).json({ error: "ابدأ البث أولاً قبل تشغيل شاشة الانتظار." });
+  restreamWorker.send({ type: "manual-standby" });
+  return res.status(202).json({ ok: true, status: "manual_standby" });
 });
 
 app.post("/restream/test", (req, res) => {
