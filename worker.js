@@ -53,9 +53,13 @@ process.on("message", message => {
     manualStandbyMode = false;
     manualStandbyRequested = false;
     resumeLiveRequested = true;
+    manualOverlayFile = null;
+    overlayRevision++;
     console.log("تم طلب العودة إلى بث Twitch.");
   }
   if (message?.type === "overlay-start" && typeof message.filePath === "string") {
+    manualStandbyMode = false;
+    manualStandbyRequested = false;
     manualOverlayFile = message.filePath;
     overlayRevision++;
     console.log("تم طلب تشغيل الفيديو اليدوي:", path.basename(message.filePath));
@@ -371,6 +375,7 @@ async function runManualOverlayUntilStopped() {
 async function main() {
   while (!stopping) {
     if (manualStandbyMode) {
+      manualStandbyRequested = false;
       await runStandbyUntilLive("شاشة الانتظار\nاضغط ابدأ البث للعودة إلى Twitch", true);
       if (resumeLiveRequested) resumeLiveRequested = false;
       continue;
