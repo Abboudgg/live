@@ -182,7 +182,7 @@ async function runAttempt() {
   console.log("بدء سحب البث من Twitch:", twitchUrl);
   console.log("وجهات البث المفعّلة:", destinations.map(([name]) => name).join(", "));
 
-  const streamlink = spawn("streamlink", ["--stdout", twitchUrl, "best"], {
+  const streamlink = spawn("streamlink", ["--stdout", twitchUrl, "720p"], {
     stdio: ["ignore", "pipe", "pipe"]
   });
 
@@ -284,7 +284,7 @@ async function runAttempt() {
 
 async function checkTwitchAvailable() {
   return await new Promise(resolve => {
-    const probe = spawn("streamlink", ["--stream-url", twitchUrl, "best"], {
+    const probe = spawn("streamlink", ["--stream-url", twitchUrl, "720p"], {
       stdio: ["ignore", "pipe", "ignore"]
     });
     let output = "";
