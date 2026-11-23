@@ -18,7 +18,7 @@ const producerOutput = `udp://127.0.0.1:${publisherPort}?pkt_size=1316`;
 
 const liveVideoFilter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p";
 const liveVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "main", "-pix_fmt", "yuv420p", "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k", "-g", "60", "-keyint_min", "60"];
-const standbyVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-b:v", "600k", "-maxrate", "600k", "-bufsize", "1200k", "-g", "48", "-keyint_min", "48"];
+const standbyVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-b:v", "400k", "-maxrate", "400k", "-bufsize", "800k", "-g", "30", "-keyint_min", "30"];
 const audioArgs = ["-c:a", "aac", "-b:a", "96k", "-ar", "48000"];
 const transportArgs = ["-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", producerOutput];
 
@@ -356,10 +356,10 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     const args = [
       "-hide_banner", "-loglevel", "info",
       "-progress", "pipe:2", "-stats_period", "10",
-      "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=854x480:r=24",
+      "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=640x360:r=15",
       "-fflags", "+discardcorrupt", "-stream_loop", "-1", "-i", standbyAudioPath,
       "-map", "0:v:0", "-map", "1:a:0",
-      "-vf", "fps=24,format=yuv420p," + statusFilter,
+      "-vf", "fps=15,format=yuv420p," + statusFilter,
       "-af", "aresample=async=1000:first_pts=0,volume=0.20"
     ];
     args.push(
