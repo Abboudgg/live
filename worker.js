@@ -139,8 +139,11 @@ async function runAttempt() {
     "-map", "0:v:0?",
     "-map", "0:a:0?",
     "-map", "1:a:0",
-    "-c:v", "copy",
-    "-c:a", "copy",
+    "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
+    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "main",
+    "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
+    "-g", "60", "-keyint_min", "60",
+    "-c:a", "aac", "-b:a", "96k", "-ar", "48000",
     "-max_muxing_queue_size", "1024",
     "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
     "-f", "mpegts", producerOutput
@@ -462,7 +465,7 @@ async function runPublishTest() {
   const args = [
     "-hide_banner", "-loglevel", "info",
     "-re", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30",
-    "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+    "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
     "-t", "15",
     "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
     "-pix_fmt", "yuv420p", "-b:v", "1200k", "-maxrate", "1200k", "-bufsize", "2400k",
