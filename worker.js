@@ -283,7 +283,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
     let switchToLive = false;
     while (!stopping && !switchToLive) {
-      if (manualOverlayFile || publishTestRequested || (manual && resumeLiveRequested)) break;
+      if (manualOverlayFile || publishTestRequested || manualStandbyRequested || (manual && resumeLiveRequested)) break;
       const next = await Promise.race([
         sleep(250).then(() => "check"),
         ended
@@ -308,7 +308,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     await Promise.race([ended, sleep(3000)]);
     if (activeChildren[0] === standby) activeChildren = [];
 
-    if (switchToLive || manualOverlayFile || publishTestRequested || stopping || (manual && resumeLiveRequested)) break;
+    if (switchToLive || manualOverlayFile || publishTestRequested || manualStandbyRequested || stopping || (manual && resumeLiveRequested)) break;
     console.warn("ستتم إعادة محاولة إرسال شاشة الانتظار بعد 5 ثوانٍ.");
     await sleep(5000);
   }
