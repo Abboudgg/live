@@ -192,14 +192,11 @@ async function runAttempt() {
     "-progress", "pipe:2", "-stats_period", "10",
     "-fflags", "+genpts",
     "-i", "pipe:0",
-    "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
-    "-map", "0:v:0?",
-    "-map", "0:a:0?",
-    "-map", "1:a:0",
-    // Twitch already supplies 1280x720 H.264 at approximately 30 fps.
-    // Copy the video stream to avoid CPU-heavy re-encoding while preserving 720p quality.
+    "-map", "0:v:0",
+    "-map", "0:a:0",
+    // Keep Twitch's original H.264 video and AAC audio; avoid extra encoding and silent audio.
     "-c:v", "copy",
-    ...audioArgs,
+    "-c:a", "copy",
     "-max_muxing_queue_size", "1024",
     ...transportArgs
   ];
