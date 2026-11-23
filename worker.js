@@ -123,6 +123,7 @@ process.on("message", message => {
 });
 
 let persistentPublisher = null;
+let publisherRestartTimer = null;
 
 function stopChildren() {
   for (const child of activeChildren) {
@@ -143,14 +144,19 @@ function startPersistentPublisher() {
   console.log("تشغيل اتصال Restream المستمر؛ تبديل المصادر سيكون داخل الاتصال نفسه.");
   const child = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
   persistentPublisher = child;
-  child.once("error", error => {
-    console.error("تعذّر تشغيل اتصال Restream المستمر:", error.message);
-    if (!stopping) shutdown();
-  });
-  child.once("close", code => {
-    console.error("انتهى اتصال Restream المستمر برمز:", code);
-    if (!stopping) shutdown();
-  });
+  const scheduleRestart = reason => {
+    if (persistentPublisher !== child) return;
+    persistentPublisher = null;
+    console.error("اتصال Restream توقف (" + reason + ")؛ ستتم إعادة المحاولة خلال 5 ثوانٍ.");
+    if (!stopping && !publisherRestartTimer) {
+      publisherRestartTimer = setTimeout(() => {
+        publisherRestartTimer = null;
+        if (!stopping) startPersistentPublisher();
+      }, 5000);
+    }
+  };
+  child.once("error", error => scheduleRestart("خطأ: " + error.message));
+  child.once("close", code => scheduleRestart("رمز الخروج " + code));
   return child;
 }
 
@@ -178,6 +184,7 @@ async function runAttempt() {
   const ffmpegArgs = [
     "-hide_banner",
     "-loglevel", "info",
+    "-progress", "pipe:2", "-stats_period", "10",
     "-fflags", "+genpts",
     "-i", "pipe:0",
     "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
@@ -195,6 +202,10 @@ async function runAttempt() {
 
   activeChildren = [streamlink, ffmpeg];
   streamlink.stdout.pipe(ffmpeg.stdin);
+  let lastProgressAt = Date.now();
+  ffmpeg.stderr.on("data", chunk => {
+    if (chunk.toString().includes("out_time_ms=")) lastProgressAt = Date.now();
+  });
 
   let streamlinkError = "";
   streamlink.stderr.on("data", chunk => {
@@ -210,13 +221,22 @@ async function runAttempt() {
   return await new Promise(resolve => {
     let settled = false;
     let overlayCheck;
+    let watchdog;
     const finish = result => {
       if (settled) return;
       settled = true;
       if (overlayCheck) clearInterval(overlayCheck);
+      if (watchdog) clearInterval(watchdog);
       stopChildren();
       resolve({ ...result, streamlinkError });
     };
+
+    watchdog = setInterval(() => {
+      if (!settled && Date.now() - lastProgressAt > 45000) {
+        console.error("توقف تقدم FFmpeg لمدة 45 ثانية؛ سيتم إعادة تشغيل مصدر البث.");
+        finish({ source: "watchdog", code: 1 });
+      }
+    }, 10000);
 
     overlayCheck = setInterval(() => {
       if (manualOverlayFile && !settled) {
@@ -330,11 +350,12 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
     const args = [
       "-hide_banner", "-loglevel", "info",
+      "-progress", "pipe:2", "-stats_period", "10",
       "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=854x480:r=24",
-      "-stream_loop", "-1", "-i", standbyAudioPath,
+      "-fflags", "+discardcorrupt", "-stream_loop", "-1", "-i", standbyAudioPath,
       "-map", "0:v:0", "-map", "1:a:0",
       "-vf", "fps=24,format=yuv420p," + statusFilter,
-      "-af", "volume=0.20"
+      "-af", "aresample=async=1000:first_pts=0,volume=0.20"
     ];
     args.push(
       ...standbyVideoArgs,
@@ -345,6 +366,10 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     console.log("بدء شاشة انتظار ثابتة مع موسيقى خلفية بمستوى 20%.");
     const standby = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
     activeChildren = [standby];
+    let lastStandbyProgressAt = Date.now();
+    standby.stderr.on("data", chunk => {
+      if (chunk.toString().includes("out_time_ms=")) lastStandbyProgressAt = Date.now();
+    });
 
     const ended = new Promise(resolve => {
       standby.once("error", error => {
@@ -366,6 +391,11 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       ]);
       if (next === "ended") {
         console.warn("انقطع إرسال شاشة الانتظار؛ ستتم إعادة تشغيله.");
+        break;
+      }
+      if (Date.now() - lastStandbyProgressAt > 45000) {
+        console.warn("توقف تقدم شاشة الانتظار لمدة 45 ثانية؛ ستتم إعادة تشغيلها.");
+        if (!standby.killed) standby.kill("SIGTERM");
         break;
       }
       if (Date.now() >= nextMessageRefreshAt) {
@@ -533,6 +563,8 @@ function shutdown() {
   if (stopping) return;
   stopping = true;
   stopChildren();
+  if (publisherRestartTimer) clearTimeout(publisherRestartTimer);
+  publisherRestartTimer = null;
   if (persistentPublisher && !persistentPublisher.killed) persistentPublisher.kill("SIGTERM");
 }
 
