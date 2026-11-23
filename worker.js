@@ -56,6 +56,19 @@ function stopChildren() {
   activeChildren = [];
 }
 
+function spawnFfmpeg(args, stdio) {
+  const child = spawn("ffmpeg", args, { stdio });
+  child.stderr.on("data", chunk => {
+    let output = chunk.toString();
+    for (const [, destination] of destinations) {
+      output = output.split(destination).join("[REDACTED_RESTREAM_URL]");
+    }
+    if (restreamKey) output = output.split(restreamKey).join("[REDACTED]");
+    process.stderr.write(output);
+  });
+  return child;
+}
+
 async function runAttempt() {
   console.log("Starting Twitch restream:", twitchUrl);
   console.log("Configured destinations:", destinations.map(([name]) => name).join(", "));
@@ -66,7 +79,7 @@ async function runAttempt() {
 
   const ffmpegArgs = [
     "-hide_banner",
-    "-loglevel", "info",
+    "-loglevel", "debug",
     "-fflags", "+genpts",
     "-i", "pipe:0",
     "-map", "0:v:0?",
@@ -85,9 +98,7 @@ async function runAttempt() {
     ffmpegArgs.push("-f", "tee", teeTargets);
   }
 
-  const ffmpeg = spawn("ffmpeg", ffmpegArgs, {
-    stdio: ["pipe", "inherit", "inherit"]
-  });
+  const ffmpeg = spawnFfmpeg(ffmpegArgs, ["pipe", "inherit", "pipe"]);
 
   activeChildren = [streamlink, ffmpeg];
   streamlink.stdout.pipe(ffmpeg.stdin);
@@ -192,7 +203,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
 
     const hasStandbyVideo = Boolean(standbyVideoUrl) || fs.existsSync(standbyVideoPath);
     const standbyInput = standbyVideoUrl || standbyVideoPath;
-    const args = ["-hide_banner", "-loglevel", "info"];
+    const args = ["-hide_banner", "-loglevel", "debug"];
     if (hasStandbyVideo) {
       console.log("Playing automatic standby video in loop:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
       args.push(
@@ -217,7 +228,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     );
 
     console.log("Starting/restarting standby RTMP output.");
-    const standby = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
+    const standby = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
     activeChildren = [standby];
 
     const ended = new Promise(resolve => {
@@ -273,7 +284,7 @@ async function runManualOverlayUntilStopped() {
     }
     console.log("Playing manual video in loop:", /^https:\/\//i.test(filePath) ? "MP4 URL" : path.basename(filePath));
     const args = [
-      "-hide_banner", "-loglevel", "info",
+      "-hide_banner", "-loglevel", "debug",
       "-stream_loop", "-1", "-re", "-i", filePath,
       "-map", "0:v:0", "-map", "0:a:0?",
       "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
@@ -284,7 +295,7 @@ async function runManualOverlayUntilStopped() {
       "-max_muxing_queue_size", "1024",
       "-f", "flv", destinations[0][1]
     ];
-    const overlay = spawn("ffmpeg", args, { stdio: ["ignore", "inherit", "inherit"] });
+    const overlay = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
     activeChildren = [overlay];
     await new Promise(resolve => {
       let finished = false;
