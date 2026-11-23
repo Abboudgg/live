@@ -238,9 +238,10 @@ async function checkTwitchAvailable() {
   });
 }
 
-async function runStandbyUntilLive(statusMessage = "انقطعت إشارة البث\nنحاول إعادة الاتصال تلقائيًا\nإذا رجعت الإشارة سيعود البث مباشرة", manual = false) {
-  console.log("عرض شاشة حالة البث حتى عودة Twitch.");
+async function runStandbyUntilLive(statusMessage = "انقطعت إشارة البث\\nنحاول إعادة الاتصال تلقائيًا\\nإذا رجعت الإشارة سيعود البث مباشرة", manual = false) {
+  console.log("عرض شاشة انتظار ثابتة مع موسيقى خلفية حتى عودة Twitch.");
   const textFile = path.join(__dirname, "waiting.txt");
+  const standbyAudioUrl = "https://basepic.com/9fDxWd82/Video-23-11-2026-07.25.mp3";
   const writeStatus = message => {
     try { fs.writeFileSync(textFile, message, "utf8"); }
     catch (error) { console.error("تعذّر تحديث نص حالة البث:", error.message); }
@@ -271,46 +272,34 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       break;
     }
 
-    const hasStandbyVideo = Boolean(standbyVideoUrl) || fs.existsSync(standbyVideoPath);
-    const standbyInput = standbyVideoUrl || standbyVideoPath;
-    const args = ["-hide_banner", "-loglevel", "info"];
-    if (hasStandbyVideo) {
-      console.log("تشغيل فيديو الانتظار التلقائي بشكل متكرر:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
-      args.push(
-        "-stream_loop", "-1", "-re", "-i", standbyInput,
-        "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
-        "-map", "0:v:0", "-map", "0:a:0?", "-map", "1:a:0",
-        "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p," + statusFilter
-      );
-    } else {
-      console.log("لا يوجد فيديو انتظار تلقائي؛ سيتم عرض شاشة الحالة.");
-      args.push(
-        "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
-        "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
-        "-map", "0:v:0", "-map", "1:a:0",
-        "-vf", statusFilter
-      );
-    }
+    const args = [
+      "-hide_banner", "-loglevel", "info",
+      "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
+      "-stream_loop", "-1", "-re", "-i", standbyAudioUrl,
+      "-map", "0:v:0", "-map", "1:a:0",
+      "-vf", statusFilter,
+      "-af", "volume=0.20"
+    ];
     args.push(
       "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
       "-b:v", "1500k", "-maxrate", "1500k", "-bufsize", "3000k",
       "-g", "60", "-keyint_min", "60",
-      " -c:a", "aac", "-b:a", "96k", "-ar", "48000",
+      "-c:a", "aac", "-b:a", "96k", "-ar", "48000",
       "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
       "-f", "mpegts", producerOutput
     );
 
-    console.log("بدء أو إعادة تشغيل إرسال شاشة الانتظار إلى خادم البث.");
+    console.log("بدء شاشة انتظار ثابتة مع موسيقى خلفية بمستوى 20%.");
     const standby = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
     activeChildren = [standby];
 
     const ended = new Promise(resolve => {
       standby.once("error", error => {
-        console.error("خطأ FFmpeg أثناء إرسال شاشة الحالة:", error.message);
+        console.error("خطأ FFmpeg أثناء إرسال شاشة الانتظار:", error.message);
         resolve("ended");
       });
       standby.once("close", code => {
-        console.warn("Broadcast status screen انتهى FFmpeg برمز:", code);
+        console.warn("انتهى إرسال شاشة الانتظار برمز:", code);
         resolve("ended");
       });
     });
@@ -328,12 +317,12 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       }
       if (!manual && Date.now() >= nextProbeAt) {
         if (await checkTwitchAvailable()) {
-          console.log("عادت إشارة Twitch؛ جارٍ التحويل من شاشة الحالة إلى البث المباشر.");
+          console.log("عادت إشارة Twitch؛ جارٍ التحويل من شاشة الانتظار إلى البث المباشر.");
           switchToLive = true;
           break;
         }
-        writeStatus("إشارة البث ما زالت منقطعة\nنواصل محاولة إعادة الاتصال تلقائيًا\nتابعونا، وإذا رجعت الإشارة سيعود البث");
-        console.log("إشارة Twitch غير متاحة؛ نستمر في عرض شاشة الحالة.");
+        writeStatus("إشارة البث ما زالت منقطعة\\nنواصل محاولة إعادة الاتصال تلقائيًا\\nتابعونا، وإذا رجعت الإشارة سيعود البث");
+        console.log("إشارة Twitch غير متاحة؛ نستمر في عرض شاشة الانتظار.");
         nextProbeAt = Date.now() + 15000;
       }
     }
@@ -347,6 +336,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
     await sleep(5000);
   }
 }
+
 async function runManualOverlayUntilStopped() {
   while (!stopping && manualOverlayFile && !publishTestRequested && !manualStandbyMode) {
     const filePath = manualOverlayFile;
