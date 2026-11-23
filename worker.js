@@ -13,8 +13,8 @@ const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
 const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
 const publisherPort = 20000 + (process.pid % 20000);
-const publisherInput = `udp://127.0.0.1:${publisherPort}?fifo_size=65536&overrun_nonfatal=1`;
-const producerOutput = `udp://127.0.0.1:${publisherPort}?pkt_size=1316`;
+const publisherInput = `udp://127.0.0.1:${publisherPort}?fifo_size=131072&overrun_nonfatal=1&buffer_size=1048576`;
+const producerOutput = `udp://127.0.0.1:${publisherPort}?pkt_size=1316&buffer_size=1048576`;
 
 const liveVideoFilter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p";
 const liveVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "main", "-pix_fmt", "yuv420p", "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k", "-g", "60", "-keyint_min", "60"];
