@@ -16,6 +16,12 @@ const publisherPort = 20000 + (process.pid % 20000);
 const publisherInput = `udp://127.0.0.1:${publisherPort}?fifo_size=65536&overrun_nonfatal=1`;
 const producerOutput = `udp://127.0.0.1:${publisherPort}?pkt_size=1316`;
 
+const liveVideoFilter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p";
+const liveVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "main", "-pix_fmt", "yuv420p", "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k", "-g", "60", "-keyint_min", "60"];
+const standbyVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-b:v", "600k", "-maxrate", "600k", "-bufsize", "1200k", "-g", "48", "-keyint_min", "48"];
+const audioArgs = ["-c:a", "aac", "-b:a", "96k", "-ar", "48000"];
+const transportArgs = ["-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", producerOutput];
+
 
 if (restreamServer && restreamKey) {
   const server = restreamServer.replace(/\/+$/, "");
@@ -178,14 +184,11 @@ async function runAttempt() {
     "-map", "0:v:0?",
     "-map", "0:a:0?",
     "-map", "1:a:0",
-    "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
-    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "main",
-    "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
-    "-g", "60", "-keyint_min", "60",
-    "-c:a", "aac", "-b:a", "96k", "-ar", "48000",
+    "-vf", liveVideoFilter,
+    ...liveVideoArgs,
+    ...audioArgs,
     "-max_muxing_queue_size", "1024",
-    "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
-    "-f", "mpegts", producerOutput
+    ...transportArgs
   ];
 
   const ffmpeg = spawnFfmpeg(ffmpegArgs, ["pipe", "inherit", "pipe"]);
@@ -334,13 +337,9 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       "-af", "volume=0.20"
     ];
     args.push(
-      "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-      "-pix_fmt", "yuv420p",
-      "-b:v", "600k", "-maxrate", "600k", "-bufsize", "1200k",
-      "-g", "48", "-keyint_min", "48",
-      "-c:a", "aac", "-b:a", "96k", "-ar", "48000",
-      "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
-      "-f", "mpegts", producerOutput
+      ...standbyVideoArgs,
+      ...audioArgs,
+      ...transportArgs
     );
 
     console.log("بدء شاشة انتظار ثابتة مع موسيقى خلفية بمستوى 20%.");
@@ -410,14 +409,11 @@ async function runManualOverlayUntilStopped() {
       "-stream_loop", "-1", "-re", "-i", filePath,
       "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
       "-map", "0:v:0", "-map", "0:a:0?", "-map", "1:a:0",
-      "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
-      "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-      "-pix_fmt", "yuv420p", "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
-      "-g", "60", "-keyint_min", "60",
-      "-c:a", "aac", "-b:a", "96k", "-ar", "48000",
+      "-vf", liveVideoFilter,
+      ...liveVideoArgs,
+      ...audioArgs,
       "-max_muxing_queue_size", "1024",
-      "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
-      "-f", "mpegts", producerOutput
+      ...transportArgs
     ];
     const overlay = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
     activeChildren = [overlay];
