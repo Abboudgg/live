@@ -386,7 +386,7 @@ app.post("/standby/manual", express.json({ limit: "8kb" }), (req, res) => {
   return res.json({ ok: true, enabled, status: enabled ? "manual_standby" : "returning_to_live" });
 });
 
-remove video routeslet activeMediaFile = null;
+let activeMediaFile = null;
 
 app.post("/media/upload", express.raw({ type: "application/octet-stream", limit: MAX_MEDIA_BYTES }), (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
