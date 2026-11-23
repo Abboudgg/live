@@ -9,6 +9,10 @@ let standbyVideoUrl = "";
 const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
 const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
+const publisherPort = 20000 + (process.pid % 20000);
+const publisherInput = `udp://127.0.0.1:${publisherPort}?fifo_size=65536&overrun_nonfatal=1`;
+const producerOutput = `udp://127.0.0.1:${publisherPort}?pkt_size=1316`;
+
 
 if (restreamServer && restreamKey) {
   const server = restreamServer.replace(/\/+$/, "");
@@ -73,11 +77,36 @@ process.on("message", message => {
   }
 });
 
+let persistentPublisher = null;
+
 function stopChildren() {
   for (const child of activeChildren) {
     if (child && !child.killed) child.kill("SIGTERM");
   }
   activeChildren = [];
+}
+
+function startPersistentPublisher() {
+  const args = [
+    "-hide_banner", "-loglevel", "info",
+    "-fflags", "+genpts+discardcorrupt", "-use_wallclock_as_timestamps", "1",
+    "-i", publisherInput,
+    "-map", "0:v:0", "-map", "0:a:0?",
+    "-c", "copy", "-flvflags", "no_duration_filesize",
+    "-f", "flv", destinations[0][1]
+  ];
+  console.log("تشغيل اتصال Restream المستمر؛ تبديل المصادر سيكون داخل الاتصال نفسه.");
+  const child = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
+  persistentPublisher = child;
+  child.once("error", error => {
+    console.error("تعذّر تشغيل اتصال Restream المستمر:", error.message);
+    if (!stopping) shutdown();
+  });
+  child.once("close", code => {
+    console.error("انتهى اتصال Restream المستمر برمز:", code);
+    if (!stopping) shutdown();
+  });
+  return child;
 }
 
 function spawnFfmpeg(args, stdio) {
@@ -106,21 +135,16 @@ async function runAttempt() {
     "-loglevel", "info",
     "-fflags", "+genpts",
     "-i", "pipe:0",
+    "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
     "-map", "0:v:0?",
     "-map", "0:a:0?",
+    "-map", "1:a:0",
     "-c:v", "copy",
     "-c:a", "copy",
-    "-max_muxing_queue_size", "1024"
+    "-max_muxing_queue_size", "1024",
+    "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
+    "-f", "mpegts", producerOutput
   ];
-
-  if (destinations.length === 1) {
-    ffmpegArgs.push("-f", "flv", destinations[0][1]);
-  } else {
-    const teeTargets = destinations
-      .map(([, url]) => `[f=flv:onfail=ignore]${url}`)
-      .join("|");
-    ffmpegArgs.push("-f", "tee", teeTargets);
-  }
 
   const ffmpeg = spawnFfmpeg(ffmpegArgs, ["pipe", "inherit", "pipe"]);
 
@@ -251,14 +275,16 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       console.log("تشغيل فيديو الانتظار التلقائي بشكل متكرر:", standbyVideoUrl ? "MP4 URL" : path.basename(standbyVideoPath));
       args.push(
         "-stream_loop", "-1", "-re", "-i", standbyInput,
-        "-map", "0:v:0", "-map", "0:a:0?",
+        "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-map", "0:v:0", "-map", "0:a:0?", "-map", "1:a:0",
         "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p," + statusFilter
       );
     } else {
       console.log("لا يوجد فيديو انتظار تلقائي؛ سيتم عرض شاشة الحالة.");
       args.push(
         "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=1280x720:r=30",
-        "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+        "-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-map", "0:v:0", "-map", "1:a:0",
         "-vf", statusFilter
       );
     }
@@ -267,7 +293,8 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       "-b:v", "1500k", "-maxrate", "1500k", "-bufsize", "3000k",
       "-g", "60", "-keyint_min", "60",
       "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
-      "-f", "flv", destinations[0][1]
+      "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
+      "-f", "mpegts", producerOutput
     );
 
     console.log("بدء أو إعادة تشغيل إرسال شاشة الانتظار إلى خادم البث.");
@@ -329,14 +356,16 @@ async function runManualOverlayUntilStopped() {
     const args = [
       "-hide_banner", "-loglevel", "info",
       "-stream_loop", "-1", "-re", "-i", filePath,
-      "-map", "0:v:0", "-map", "0:a:0?",
+      "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+      "-map", "0:v:0", "-map", "0:a:0?", "-map", "1:a:0",
       "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
       "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
       "-pix_fmt", "yuv420p", "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k",
       "-g", "60", "-keyint_min", "60",
-      "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
+      "-c:a", "aac", "-b:a", "96k", "-ar", "48000",
       "-max_muxing_queue_size", "1024",
-      "-f", "flv", destinations[0][1]
+      "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
+      "-f", "mpegts", producerOutput
     ];
     const overlay = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
     activeChildren = [overlay];
@@ -373,6 +402,8 @@ async function runManualOverlayUntilStopped() {
 }
 
 async function main() {
+  startPersistentPublisher();
+  await sleep(500);
   while (!stopping) {
     if (manualStandbyMode) {
       manualStandbyRequested = false;
@@ -436,8 +467,9 @@ async function runPublishTest() {
     "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
     "-pix_fmt", "yuv420p", "-b:v", "1200k", "-maxrate", "1200k", "-bufsize", "2400k",
     "-g", "60", "-keyint_min", "60",
-    "-c:a", "aac", "-b:a", "96k", "-ar", "44100",
-    "-f", "flv", destinations[0][1]
+    "-c:a", "aac", "-b:a", "96k", "-ar", "48000",
+    "-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0",
+    "-f", "mpegts", producerOutput
   ];
   const test = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
   activeChildren = [test];
@@ -453,6 +485,7 @@ function shutdown() {
   if (stopping) return;
   stopping = true;
   stopChildren();
+  if (persistentPublisher && !persistentPublisher.killed) persistentPublisher.kill("SIGTERM");
 }
 
 process.on("SIGTERM", shutdown);
