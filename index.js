@@ -18,8 +18,7 @@ app.disable("x-powered-by");
 
 const mediaDirectory = path.join(os.tmpdir(), "live-control-media");
 fs.mkdirSync(mediaDirectory, { recursive: true });
-const standbyVideoPath = path.join(mediaDirectory, "automatic-standby-video");
-let standbyVideoUrl = "";
+const standbyMessagePath = path.join(mediaDirectory, "standby-message.txt");
 let manualStandbyUrl = "";
 let manualStandbyEnabled = false;
 const allowedVideoExtensions = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
@@ -241,7 +240,6 @@ function startRestreamWorker() {
   worker.once("spawn", () => {
     if (restreamWorker !== worker) return;
     restreamWorkerState = "running";
-    if (standbyVideoUrl) worker.send({ type: "standby-url", url: standbyVideoUrl });
     if (manualStandbyEnabled && manualStandbyUrl) worker.send({ type: "overlay-start", filePath: manualStandbyUrl });
     if (restreamStableTimer) clearTimeout(restreamStableTimer);
     restreamStableTimer = setTimeout(() => {
@@ -347,18 +345,24 @@ app.post("/media/url", express.json({ limit: "8kb" }), (req, res) => {
   return res.json({ ok: true, configured: true, url });
 });
 
-app.get("/standby-video/url", (req, res) => {
+app.get("/standby-message", (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
-  return res.json({ configured: Boolean(standbyVideoUrl), url: standbyVideoUrl });
+  let message = "";
+  try { message = fs.readFileSync(standbyMessagePath, "utf8"); } catch {}
+  return res.json({ message });
 });
 
-app.post("/standby-video/url", express.json({ limit: "8kb" }), (req, res) => {
+app.post("/standby-message", express.json({ limit: "8kb" }), (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
-  const url = String(req.body?.url || "").trim();
-  if (!validMp4Url(url)) return res.status(400).json({ error: "أدخل رابط MP4 مباشر يبدأ بـ HTTPS وينتهي بـ .mp4." });
-  standbyVideoUrl = url;
-  if (restreamWorker?.connected) restreamWorker.send({ type: "standby-url", url });
-  return res.json({ ok: true, configured: true, url });
+  const message = String(req.body?.message || "").trim();
+  if (message.length > 400) return res.status(400).json({ error: "الحد الأقصى 400 حرف." });
+  try {
+    fs.writeFileSync(standbyMessagePath, message, "utf8");
+    return res.json({ ok: true, message, configured: Boolean(message) });
+  } catch (error) {
+    console.error("تعذّر حفظ رسالة شاشة الانتظار:", error.message);
+    return res.status(500).json({ error: "تعذّر حفظ الرسالة على الخادم." });
+  }
 });
 
 app.get("/standby/manual", (req, res) => {
@@ -382,35 +386,7 @@ app.post("/standby/manual", express.json({ limit: "8kb" }), (req, res) => {
   return res.json({ ok: true, enabled, status: enabled ? "manual_standby" : "returning_to_live" });
 });
 
-app.get("/standby-video", (req, res) => {
-  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
-  if (standbyVideoUrl) return res.json({ configured: true, url: standbyVideoUrl, source: "url" });
-  if (!fs.existsSync(standbyVideoPath)) return res.json({ configured: false });
-  const stat = fs.statSync(standbyVideoPath);
-  return res.json({ configured: true, size: stat.size, updatedAt: stat.mtimeMs });
-});
-
-app.post("/standby-video/upload", express.raw({ type: "application/octet-stream", limit: MAX_MEDIA_BYTES }), (req, res) => {
-  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
-  const originalName = decodeURIComponent(String(req.get("x-file-name") || "standby.mp4")).replace(/\\/g, "/").split("/").pop();
-  const extension = path.extname(originalName).toLowerCase();
-  if (!allowedVideoExtensions.has(extension)) return res.status(400).json({ error: "صيغة الفيديو غير مدعومة." });
-  if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "ملف الفيديو فارغ." });
-  if (req.body.length > MAX_MEDIA_BYTES) return res.status(413).json({ error: "الحد الأقصى لحجم الفيديو 200 ميجابايت." });
-  fs.writeFileSync(standbyVideoPath, req.body);
-  standbyVideoUrl = "";
-  return res.status(201).json({ ok: true, configured: true, size: req.body.length });
-});
-
-app.delete("/standby-video", (req, res) => {
-  if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
-  if (fs.existsSync(standbyVideoPath)) fs.unlinkSync(standbyVideoPath);
-  standbyVideoUrl = "";
-  if (restreamWorker?.connected) restreamWorker.send({ type: "standby-url", url: "" });
-  return res.json({ ok: true, configured: false });
-});
-
-let activeMediaFile = null;
+remove video routeslet activeMediaFile = null;
 
 app.post("/media/upload", express.raw({ type: "application/octet-stream", limit: MAX_MEDIA_BYTES }), (req, res) => {
   if (!restreamControlAuthorized(req)) return res.status(401).json({ error: "رمز التحكم غير صحيح." });
