@@ -1,5 +1,5 @@
 const { spawn } = require("child_process");
-const { Readable, Transform } = require("stream");
+const { Readable } = require("stream");
 const { pipeline } = require("stream/promises");
 const fs = require("fs");
 const path = require("path");
@@ -88,7 +88,6 @@ let resumeLiveRequested = false;
 let manualStandbyMode = false;
 let activeChildren = [];
 let manualOverlayFile = null;
-let overlayRevision = 0;
 
 process.on("message", message => {
   if (message?.type === "publish-test") {
@@ -106,7 +105,6 @@ process.on("message", message => {
     manualStandbyRequested = false;
     resumeLiveRequested = true;
     manualOverlayFile = null;
-    overlayRevision++;
     console.log("تم طلب العودة إلى بث Twitch.");
   }
   if (message?.type === "overlay-start" && typeof message.filePath === "string") {
@@ -194,8 +192,8 @@ async function runAttempt() {
     "-i", "pipe:0",
     "-map", "0:v:0",
     "-map", "0:a:0",
-    // Twitch already supplies 1280x720 H.264 at approximately 30 fps; skip redundant scaling/FPS filters to reduce CPU load.
-    ...liveVideoArgs,
+    // Pass Twitch's original H.264 video through without re-encoding to reduce CPU load.
+    "-c:v", "copy",
     "-c:a", "copy",
     "-max_muxing_queue_size", "1024",
     ...transportArgs
