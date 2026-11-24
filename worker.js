@@ -17,7 +17,7 @@ const publisherInput = `udp://127.0.0.1:${publisherPort}?fifo_size=131072&overru
 const producerOutput = `udp://127.0.0.1:${publisherPort}?pkt_size=1316&buffer_size=1048576`;
 
 const liveVideoFilter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p";
-const liveVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "main", "-pix_fmt", "yuv420p", "-b:v", "1800k", "-maxrate", "1800k", "-bufsize", "3600k", "-g", "60", "-keyint_min", "60"];
+const liveVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "main", "-pix_fmt", "yuv420p", "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k", "-g", "60", "-keyint_min", "60"];
 const standbyVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-b:v", "400k", "-maxrate", "400k", "-bufsize", "800k", "-g", "30", "-keyint_min", "30"];
 const audioArgs = ["-c:a", "aac", "-b:a", "96k", "-ar", "48000"];
 const transportArgs = ["-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", producerOutput];
