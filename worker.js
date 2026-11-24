@@ -194,8 +194,7 @@ async function runAttempt() {
     "-i", "pipe:0",
     "-map", "0:v:0",
     "-map", "0:a:0",
-    // Restore the previous 720p30 video encoding profile while keeping the original audio.
-    "-vf", liveVideoFilter,
+    // Twitch already supplies 1280x720 H.264 at approximately 30 fps; skip redundant scaling/FPS filters to reduce CPU load.
     ...liveVideoArgs,
     "-c:a", "copy",
     "-max_muxing_queue_size", "1024",
