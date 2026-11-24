@@ -111,11 +111,9 @@ process.on("message", message => {
     manualStandbyMode = false;
     manualStandbyRequested = false;
     manualOverlayFile = message.filePath;
-    overlayRevision++;
     console.log("تم طلب تشغيل الفيديو اليدوي:", path.basename(message.filePath));
   } else if (message?.type === "overlay-stop") {
     manualOverlayFile = null;
-    overlayRevision++;
     console.log("تم طلب إيقاف الفيديو اليدوي.");
   }
 });
