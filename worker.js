@@ -1,14 +1,10 @@
 const { spawn } = require("child_process");
-const { Readable } = require("stream");
-const { pipeline } = require("stream/promises");
 const fs = require("fs");
 const path = require("path");
 
 const twitchChannel = (process.env.TWITCH_CHANNEL || "r119_abdlull").replace(/^@/, "");
 const twitchUrl = `https://www.twitch.tv/${twitchChannel}`;
-const standbyMediaDirectory = path.join(require("os").tmpdir(), "live-control-media");
-const standbyMessagePath = path.join(standbyMediaDirectory, "standby-message.txt");
-const standbyAudioPath = path.join(standbyMediaDirectory, "waiting-github.mp3");
+const standbyMessagePath = path.join(require("os").tmpdir(), "live-control-media", "standby-message.txt");
 const restreamServer = (process.env.RESTREAM_RTMP_URL || "").trim();
 const restreamKey = (process.env.RESTREAM_STREAM_KEY || "").trim();
 const destinations = [];
@@ -20,6 +16,7 @@ const liveVideoFilter = "scale=1280:720:force_original_aspect_ratio=decrease,pad
 const liveVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-profile:v", "main", "-pix_fmt", "yuv420p", "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k", "-g", "60", "-keyint_min", "60"];
 const standbyVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-b:v", "400k", "-maxrate", "400k", "-bufsize", "800k", "-g", "30", "-keyint_min", "30"];
 const audioArgs = ["-c:a", "aac", "-b:a", "96k", "-ar", "48000"];
+const standbyAudioUrl = "https://backup.qurango.net/radio/yasser_aldosari";
 const transportArgs = ["-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", producerOutput];
 
 
@@ -43,44 +40,6 @@ if (destinations.length === 0) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function ensureStandbyAudio() {
-  await fs.promises.mkdir(path.dirname(standbyAudioPath), { recursive: true });
-  try {
-    const cached = await fs.promises.stat(standbyAudioPath);
-    if (cached.isFile() && cached.size > 0) {
-      console.log("ملف موسيقى الانتظار موجود محليًا؛ سيتم استخدام النسخة المحفوظة.");
-      return standbyAudioPath;
-    }
-  } catch {}
-
-  const audioUrl = "https://raw.githubusercontent.com/Abboudgg/live/main/waiting.mp3";
-  const temporaryPath = standbyAudioPath + ".download";
-  console.log("جارٍ تنزيل موسيقى الانتظار إلى ملف محلي...");
-  const response = await fetch(audioUrl, {
-    signal: AbortSignal.timeout(60000),
-    headers: { "user-agent": "live-control-room/1.1" }
-  });
-  if (!response.ok || !response.body) {
-    throw new Error("تعذّر تنزيل ملف الموسيقى؛ HTTP " + response.status);
-  }
-
-  try {
-    await pipeline(
-      Readable.fromWeb(response.body),
-      fs.createWriteStream(temporaryPath)
-    );
-    const downloaded = await fs.promises.stat(temporaryPath);
-    if (!downloaded.isFile() || downloaded.size === 0) {
-      throw new Error("ملف الموسيقى الذي تم تنزيله فارغ.");
-    }
-    await fs.promises.rename(temporaryPath, standbyAudioPath);
-    console.log("تم تنزيل موسيقى الانتظار وحفظها محليًا بنجاح.");
-    return standbyAudioPath;
-  } catch (error) {
-    await fs.promises.rm(temporaryPath, { force: true }).catch(() => {});
-    throw error;
-  }
-}
 let stopping = false;
 let publishTestRequested = false;
 let manualStandbyRequested = false;
@@ -340,19 +299,13 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       break;
     }
 
-    try {
-      await ensureStandbyAudio();
-    } catch (error) {
-      console.error("تعذّر تجهيز موسيقى شاشة الانتظار:", error.message);
-      await sleep(15000);
-      continue;
-    }
-
     const args = [
       "-hide_banner", "-loglevel", "info",
       "-progress", "pipe:2", "-stats_period", "10",
       "-re", "-f", "lavfi", "-i", "color=c=0x5b1028:s=640x360:r=15",
-      "-fflags", "+discardcorrupt", "-stream_loop", "-1", "-i", standbyAudioPath,
+      "-fflags", "+discardcorrupt",
+      "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
+      "-i", standbyAudioUrl,
       "-map", "0:v:0", "-map", "1:a:0",
       "-vf", "fps=15,format=yuv420p," + statusFilter,
       "-af", "aresample=async=1000:first_pts=0,volume=0.20"
@@ -363,7 +316,7 @@ async function runStandbyUntilLive(statusMessage = "انقطعت إشارة ال
       ...transportArgs
     );
 
-    console.log("بدء شاشة انتظار ثابتة مع موسيقى خلفية بمستوى 20%.");
+    console.log("بدء شاشة انتظار ثابتة مع بث إذاعة ياسر الدوسري بمستوى 20%.");
     const standby = spawnFfmpeg(args, ["ignore", "inherit", "pipe"]);
     activeChildren = [standby];
     let lastStandbyProgressAt = Date.now();
