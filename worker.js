@@ -41,63 +41,6 @@ if (destinations.length === 0) {
   process.exit(1);
 }
 
-const LIVE_DELAY_MS = 5000;
-
-function createLiveDelay(delayMs) {
-  const queue = [];
-  let timer = null;
-  let flushCallback = null;
-
-  const delayed = new Transform({
-    transform(chunk, encoding, callback) {
-      queue.push({ chunk, readyAt: Date.now() + delayMs });
-      callback();
-      drain();
-    },
-    flush(callback) {
-      flushCallback = callback;
-      drain();
-    }
-  });
-
-  function drain() {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-
-    while (queue.length > 0) {
-      const next = queue[0];
-      const remaining = next.readyAt - Date.now();
-      if (remaining > 0) {
-        timer = setTimeout(drain, remaining);
-        return;
-      }
-
-      queue.shift();
-      if (!delayed.push(next.chunk)) return;
-    }
-
-    if (flushCallback) {
-      const callback = flushCallback;
-      flushCallback = null;
-      callback();
-    }
-  }
-
-  const originalRead = delayed._read.bind(delayed);
-  delayed._read = size => {
-    originalRead(size);
-    drain();
-  };
-
-  delayed.once("close", () => {
-    if (timer) clearTimeout(timer);
-  });
-
-  return delayed;
-}
-
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function ensureStandbyAudio() {
@@ -239,7 +182,7 @@ async function runAttempt() {
   console.log("بدء سحب البث من Twitch:", twitchUrl);
   console.log("وجهات البث المفعّلة:", destinations.map(([name]) => name).join(", "));
 
-  const streamlink = spawn("streamlink", ["--stdout", twitchUrl, "720p"], {
+  const streamlink = spawn("streamlink", ["--twitch-low-latency", "--stdout", twitchUrl, "720p"], {
     stdio: ["ignore", "pipe", "pipe"]
   });
 
@@ -262,9 +205,8 @@ async function runAttempt() {
   const ffmpeg = spawnFfmpeg(ffmpegArgs, ["pipe", "inherit", "pipe"]);
 
   activeChildren = [streamlink, ffmpeg];
-  const liveDelay = createLiveDelay(LIVE_DELAY_MS);
-  streamlink.stdout.pipe(liveDelay).pipe(ffmpeg.stdin);
-  console.log("تأخير مصدر Twitch المباشر مفعّل: " + (LIVE_DELAY_MS / 1000) + " ثوانٍ.");
+  streamlink.stdout.pipe(ffmpeg.stdin);
+  console.log("تم تفعيل سحب Twitch بزمن استجابة منخفض، دون تأخير مضاف من العامل.");
   let lastProgressAt = Date.now();
   ffmpeg.stderr.on("data", chunk => {
     if (chunk.toString().includes("out_time_ms=")) lastProgressAt = Date.now();
@@ -342,7 +284,7 @@ async function runAttempt() {
 
 async function checkTwitchAvailable() {
   return await new Promise(resolve => {
-    const probe = spawn("streamlink", ["--stream-url", twitchUrl, "720p"], {
+    const probe = spawn("streamlink", ["--twitch-low-latency", "--stream-url", twitchUrl, "720p"], {
       stdio: ["ignore", "pipe", "ignore"]
     });
     let output = "";
