@@ -17,6 +17,7 @@ const liveVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zero
 const standbyVideoArgs = ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-b:v", "400k", "-maxrate", "400k", "-bufsize", "800k", "-g", "30", "-keyint_min", "30"];
 const audioArgs = ["-c:a", "aac", "-b:a", "96k", "-ar", "48000"];
 const standbyAudioUrl = "https://backup.qurango.net/radio/yasser_aldosari";
+const backgroundMusicUrl = "https://raw.githubusercontent.com/Abboudgg/live/main/waiting.mp3";
 const transportArgs = ["-mpegts_flags", "+resend_headers", "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", producerOutput];
 
 
@@ -147,11 +148,15 @@ async function runAttempt() {
     "-progress", "pipe:2", "-stats_period", "10",
     "-fflags", "+genpts",
     "-i", "pipe:0",
+    "-stream_loop", "-1",
+    "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
+    "-i", backgroundMusicUrl,
+    "-filter_complex", "[0:a:0]aresample=48000[mainaudio];[1:a:0]volume=0.20,aresample=48000[music];[mainaudio][music]amix=inputs=2:duration=first:dropout_transition=2[aout]",
     "-map", "0:v:0",
-    "-map", "0:a:0",
-    // Pass Twitch's original H.264 video through without re-encoding to reduce CPU load.
+    "-map", "[aout]",
+    // Keep Twitch's original H.264 video; mix background music at 20% and encode audio only.
     "-c:v", "copy",
-    "-c:a", "copy",
+    "-c:a", "aac", "-b:a", "96k", "-ar", "48000",
     "-max_muxing_queue_size", "1024",
     ...transportArgs
   ];
