@@ -1,5 +1,5 @@
 const { spawn } = require("child_process");
-const { Readable } = require("stream");
+const { Readable, Transform } = require("stream");
 const { pipeline } = require("stream/promises");
 const fs = require("fs");
 const path = require("path");
@@ -39,6 +39,63 @@ destinations.push(...configuredDestinations);
 if (destinations.length === 0) {
   console.error("إعدادات Restream غير مكتملة أو غير صحيحة.");
   process.exit(1);
+}
+
+const LIVE_DELAY_MS = 5000;
+
+function createLiveDelay(delayMs) {
+  const queue = [];
+  let timer = null;
+  let flushCallback = null;
+
+  const delayed = new Transform({
+    transform(chunk, encoding, callback) {
+      queue.push({ chunk, readyAt: Date.now() + delayMs });
+      callback();
+      drain();
+    },
+    flush(callback) {
+      flushCallback = callback;
+      drain();
+    }
+  });
+
+  function drain() {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+
+    while (queue.length > 0) {
+      const next = queue[0];
+      const remaining = next.readyAt - Date.now();
+      if (remaining > 0) {
+        timer = setTimeout(drain, remaining);
+        return;
+      }
+
+      queue.shift();
+      if (!delayed.push(next.chunk)) return;
+    }
+
+    if (flushCallback) {
+      const callback = flushCallback;
+      flushCallback = null;
+      callback();
+    }
+  }
+
+  const originalRead = delayed._read.bind(delayed);
+  delayed._read = size => {
+    originalRead(size);
+    drain();
+  };
+
+  delayed.once("close", () => {
+    if (timer) clearTimeout(timer);
+  });
+
+  return delayed;
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -205,7 +262,9 @@ async function runAttempt() {
   const ffmpeg = spawnFfmpeg(ffmpegArgs, ["pipe", "inherit", "pipe"]);
 
   activeChildren = [streamlink, ffmpeg];
-  streamlink.stdout.pipe(ffmpeg.stdin);
+  const liveDelay = createLiveDelay(LIVE_DELAY_MS);
+  streamlink.stdout.pipe(liveDelay).pipe(ffmpeg.stdin);
+  console.log("تأخير مصدر Twitch المباشر مفعّل: " + (LIVE_DELAY_MS / 1000) + " ثوانٍ.");
   let lastProgressAt = Date.now();
   ffmpeg.stderr.on("data", chunk => {
     if (chunk.toString().includes("out_time_ms=")) lastProgressAt = Date.now();
