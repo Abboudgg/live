@@ -194,8 +194,9 @@ async function runAttempt() {
     "-i", "pipe:0",
     "-map", "0:v:0",
     "-map", "0:a:0",
-    // Keep Twitch's original H.264 video and AAC audio; avoid extra encoding and silent audio.
-    "-c:v", "copy",
+    // Restore the previous 720p30 video encoding profile while keeping the original audio.
+    "-vf", liveVideoFilter,
+    ...liveVideoArgs,
     "-c:a", "copy",
     "-max_muxing_queue_size", "1024",
     ...transportArgs
